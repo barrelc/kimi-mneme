@@ -39,7 +39,10 @@
 
 ```bash
 # One-shot bootstrap — sets up everything automatically
-uvx --from git+https://github.com/yourusername/kimi-mneme.git kimi-mneme bootstrap
+uvx --from git+https://github.com/barrelc/kimi-mneme.git mneme bootstrap
+
+# Or install latest release
+uvx --from git+https://github.com/barrelc/kimi-mneme.git@v1.1.0 mneme bootstrap
 
 # Or if you already have the repo cloned:
 cd kimi-mneme
