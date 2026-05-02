@@ -73,7 +73,7 @@ def init() -> None:
 
     config = load_config()
     init_db(config["db"]["path"])
-    click.echo("✅ Database initialized")
+    click.echo(" Database initialized")
 
 
 @main.command()
@@ -96,7 +96,7 @@ def cleanup(days: int) -> None:
     conn.commit()
     conn.close()
 
-    click.echo(f"🗑️  Deleted {deleted} observations older than {days} days")
+    click.echo(f"  Deleted {deleted} observations older than {days} days")
 
 
 @main.command()
@@ -107,7 +107,7 @@ def stats() -> None:
     store = ObservationStore()
     data = store.get_stats()
 
-    click.echo("📊 kimi-mneme Statistics")
+    click.echo(" kimi-mneme Statistics")
     click.echo("-" * 30)
     click.echo(f"Sessions:      {data['total_sessions']}")
     click.echo(f"Observations:  {data['total_observations']}")
@@ -127,7 +127,7 @@ def stats() -> None:
 
 def _init_database() -> bool:
     """Initialize the SQLite database."""
-    click.echo("🗄️  Initializing database...")
+    click.echo("  Initializing database...")
     mneme_dir = get_mneme_dir()
     mneme_dir.mkdir(parents=True, exist_ok=True)
     db_path = mneme_dir / "mneme.db"
@@ -136,22 +136,22 @@ def _init_database() -> bool:
         from mneme.db.schema import init_db
 
         init_db(str(db_path))
-        click.echo(f"✅ Database initialized at {db_path}")
+        click.echo(f" Database initialized at {db_path}")
         return True
     except Exception as e:
-        click.echo(f"❌ Failed to initialize database: {e}")
+        click.echo(f" Failed to initialize database: {e}")
         return False
 
 
 def _create_default_config() -> bool:
     """Create default configuration file."""
-    click.echo("⚙️  Creating default configuration...")
+    click.echo("  Creating default configuration...")
     config_dir = get_mneme_dir()
     config_dir.mkdir(parents=True, exist_ok=True)
     config_path = config_dir / "config.json"
 
     if config_path.exists():
-        click.echo("ℹ️  Config already exists, skipping")
+        click.echo("  Config already exists, skipping")
         return True
 
     default_config = {
@@ -167,10 +167,10 @@ def _create_default_config() -> bool:
     try:
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(default_config, f, indent=2)
-        click.echo(f"✅ Config created at {config_path}")
+        click.echo(f" Config created at {config_path}")
         return True
     except Exception as e:
-        click.echo(f"❌ Failed to create config: {e}")
+        click.echo(f" Failed to create config: {e}")
         return False
 
 
@@ -194,9 +194,10 @@ def _register_hooks() -> bool:
     hook_entries = []
     for event, script in hooks:
         script_path = hooks_dir / script
-        # Use sys.executable so it works on Windows, venv, uvx, etc.
+        # Use forward slashes in paths to avoid TOML escape issues on Windows
+        cmd = f"{python_exe} {script_path}".replace("\\", "/")
         hook_entries.append(
-            f'[[hooks]]\nevent = "{event}"\ncommand = "{python_exe} {script_path}"\n'
+            f'[[hooks]]\nevent = "{event}"\ncommand = "{cmd}"\n'
         )
 
     hook_block = (
@@ -231,9 +232,8 @@ def _register_hooks() -> bool:
         else:
             content = hook_block
 
-        # Write with BOM on Windows for TOML compatibility
-        encoding = "utf-8-sig" if sys.platform == "win32" else "utf-8"
-        with open(kimi_config, "w", encoding=encoding) as f:
+        # NOTE: Do NOT use utf-8-sig (BOM) — tomlkit in Kimi CLI chokes on \ufeff
+        with open(kimi_config, "w", encoding="utf-8") as f:
             f.write(content)
 
         click.echo(f"Hooks registered in {kimi_config}")
@@ -246,12 +246,12 @@ def _register_hooks() -> bool:
 
 def _install_plugin() -> bool:
     """Install the Kimi CLI plugin."""
-    click.echo("🔌 Installing plugin...")
+    click.echo(" Installing plugin...")
 
     plugin_dir = get_project_root() / "plugin"
 
     if not plugin_dir.exists():
-        click.echo("❌ Plugin directory not found")
+        click.echo(" Plugin directory not found")
         return False
 
     # Generate plugin.json with correct python executable
@@ -265,19 +265,19 @@ def _install_plugin() -> bool:
         )
 
         if result.returncode == 0:
-            click.echo("✅ Plugin installed")
+            click.echo(" Plugin installed")
             return True
         else:
-            click.echo(f"⚠️  Plugin install output: {result.stdout or result.stderr}")
+            click.echo(f"  Plugin install output: {result.stdout or result.stderr}")
             # Don't fail — plugin might already be installed
             return True
 
     except FileNotFoundError:
-        click.echo("⚠️  Kimi CLI not found in PATH. Please install plugin manually:")
+        click.echo("  Kimi CLI not found in PATH. Please install plugin manually:")
         click.echo(f"   kimi plugin install {plugin_dir}")
         return True
     except Exception as e:
-        click.echo(f"❌ Failed to install plugin: {e}")
+        click.echo(f" Failed to install plugin: {e}")
         return False
 
 
@@ -371,7 +371,7 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
 
 def _start_server() -> bool:
     """Start the web server."""
-    click.echo("🌐 Starting web server...")
+    click.echo(" Starting web server...")
 
     try:
         if sys.platform == "win32":
@@ -388,11 +388,11 @@ def _start_server() -> bool:
                 start_new_session=True,
             )
 
-        click.echo("✅ Web server started at http://localhost:37777")
+        click.echo(" Web server started at http://localhost:37777")
         return True
 
     except Exception as e:
-        click.echo(f"⚠️  Failed to start server: {e}")
+        click.echo(f"  Failed to start server: {e}")
         click.echo("   Start manually: python -m mneme.server")
         return True
 
@@ -406,7 +406,7 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     Registers hooks, installs plugin, initializes database, and starts web server.
     Safe to run multiple times — idempotent.
     """
-    click.echo("🧠 Bootstrapping kimi-mneme...")
+    click.echo(" Bootstrapping kimi-mneme...")
     click.echo()
 
     steps = [
@@ -423,14 +423,14 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
 
     all_ok = True
     for name, step in steps:
-        click.echo(f"\n📋 Step: {name}")
+        click.echo(f"\n Step: {name}")
         click.echo("-" * 30)
         if not step():
             all_ok = False
-            click.echo(f"⚠️  Step '{name}' had issues, continuing...")
+            click.echo(f"  Step '{name}' had issues, continuing...")
 
     click.echo("\n" + "=" * 50)
-    click.echo("🎉 kimi-mneme bootstrapped successfully!")
+    click.echo(" kimi-mneme bootstrapped successfully!")
     click.echo("=" * 50)
     click.echo()
     click.echo("Next steps:")
@@ -440,9 +440,9 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     click.echo("     export MOONSHOT_API_KEY=your-key")
     click.echo()
     click.echo("Commands:")
-    click.echo("  mneme stats     — Show database statistics")
-    click.echo("  mneme server    — Start web server")
-    click.echo("  mneme cleanup   — Clean old observations")
+    click.echo("  mneme stats      Show database statistics")
+    click.echo("  mneme server     Start web server")
+    click.echo("  mneme cleanup    Clean old observations")
     click.echo()
     click.echo("Files:")
     click.echo(f"  Config:  {get_mneme_dir() / 'config.json'}")
