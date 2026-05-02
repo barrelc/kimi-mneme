@@ -442,6 +442,8 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     Safe to run multiple times — idempotent.
     """
     click.echo(" Bootstrapping kimi-mneme...")
+    click.echo(f" Version: 1.1.0")
+    click.echo(f" Python: {sys.executable}")
     click.echo()
 
     steps = [

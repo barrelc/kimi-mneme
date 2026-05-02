@@ -33,6 +33,9 @@ def _start_server() -> None:
     if not server_cfg.get("enabled", True):
         return
     
+    if not server_cfg.get("auto_start", True):
+        return
+    
     host = server_cfg.get("host", "127.0.0.1")
     port = server_cfg.get("port", 37777)
     
@@ -40,6 +43,7 @@ def _start_server() -> None:
         return  # Already running
     
     try:
+        # Use the same Python executable that runs this hook
         python_exe = sys.executable
         if sys.platform == "win32":
             # CREATE_NO_WINDOW = 0x08000000 — no console popup
