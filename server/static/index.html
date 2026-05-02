@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>kimi-mneme — Memory Stream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <div class="logo-icon">🧠</div>
+        <span class="logo-text">kimi-mneme</span>
+      </div>
+
+      <div class="project-tabs" id="project-tabs">
+        <button class="project-tab active" data-project="all">All</button>
+        <!-- Projects loaded dynamically -->
+      </div>
+
+      <div class="header-controls">
+        <label class="toggle active" id="auto-refresh-toggle">
+          <div class="toggle-switch"></div>
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">Live</span>
+        </label>
+      </div>
+    </header>
+
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Overview</div>
+        <div class="stat-orb">
+          <div class="stat-orb-value" id="stat-sessions">0</div>
+          <div class="stat-orb-label">Sessions</div>
+        </div>
+        <div class="stat-orb">
+          <div class="stat-orb-value" id="stat-observations">0</div>
+          <div class="stat-orb-label">Observations</div>
+        </div>
+        <div class="stat-orb">
+          <div class="stat-orb-value" id="stat-summaries">0</div>
+          <div class="stat-orb-label">Summaries</div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Activity</div>
+        <div class="heatmap" id="heatmap">
+          <!-- 7x5 grid -->
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Token Economics</div>
+        <div class="economics-row">
+          <span class="economics-label">Context loaded</span>
+          <span class="economics-value" id="tokens-loaded">0</span>
+        </div>
+        <div class="economics-row">
+          <span class="economics-label">Work invested</span>
+          <span class="economics-value" id="tokens-invested">0</span>
+        </div>
+        <div class="economics-row">
+          <span class="economics-label">Savings</span>
+          <span class="economics-value economics-savings" id="tokens-savings">0%</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search your memory..." autocomplete="off">
+      </div>
+
+      <div class="filter-bar">
+        <button class="filter-pill active" data-filter="all">
+          <span class="dot" style="background: var(--text-dim);"></span>
+          All
+        </button>
+        <button class="filter-pill" data-filter="UserPromptSubmit">
+          <span class="dot dot-prompt"></span>
+          Prompts
+        </button>
+        <button class="filter-pill" data-filter="PostToolUse">
+          <span class="dot dot-tool"></span>
+          Tools
+        </button>
+        <button class="filter-pill" data-filter="PostToolUseFailure">
+          <span class="dot dot-error"></span>
+          Errors
+        </button>
+        <button class="filter-pill" data-filter="SessionStart">
+          <span class="dot dot-success"></span>
+          Sessions
+        </button>
+      </div>
+
+      <div id="observations-stream">
+        <div style="text-align: center; padding: 4rem; color: var(--text-dim);">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">🌊</div>
+          <p>No observations yet. Start a Kimi CLI session!</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Sidebar — Log Stream -->
+    <aside class="rightbar">
+      <div class="rightbar-header">
+        <span class="rightbar-title">System Log</span>
+        <span style="font-size: 0.7rem; color: var(--text-dim);" id="log-count">0 entries</span>
+      </div>
+      <div class="log-stream" id="log-stream">
+        <div class="log-entry">
+          <span class="log-time">--:--</span>
+          <span class="log-level log-level-info">INFO</span>
+          <span class="log-message">kimi-mneme ready</span>
+        </div>
+      </div>
+      <div class="economics-panel">
+        <div class="economics-row">
+          <span class="economics-label">DB Size</span>
+          <span class="economics-value" id="db-size">0 MB</span>
+        </div>
+        <div class="economics-row">
+          <span class="economics-label">Compression</span>
+          <span class="economics-value" id="compression-status">Active</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

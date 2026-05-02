@@ -1,0 +1,310 @@
+"""Context injection for new sessions."""
+
+from __future__ import annotations
+
+import os
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from loguru import logger
+
+from mneme.config import load_config
+from mneme.db.store import ObservationStore
+from mneme.db.vector import VectorStore
+
+
+class Injector:
+    """Inject relevant past context into new sessions."""
+
+    def __init__(self) -> None:
+        config = load_config()
+        self.enabled = config["injection"]["enabled"]
+        self.max_tokens = config["injection"]["max_tokens"]
+        self.min_relevance = config["injection"]["min_relevance"]
+        self.max_results = config["injection"]["max_results"]
+        self.recency_boost_days = config["injection"]["recency_boost_days"]
+        self.format = config["injection"]["format"]
+        self.store = ObservationStore()
+        self.vector_store = VectorStore()
+
+    def get_context(self, cwd: str) -> str | None:
+        """Get relevant context for a new session.
+
+        Args:
+            cwd: Current working directory (project context).
+
+        Returns:
+            Formatted context string or None if disabled/no results.
+        """
+        if not self.enabled:
+            return None
+
+        try:
+            context_parts = []
+            total_chars = 0
+            max_chars = self.max_tokens * 4  # Rough estimate
+
+            # 1. Inject cross-session patterns (errors, fixes, decisions)
+            patterns = self._get_relevant_patterns(cwd)
+            if patterns:
+                patterns_context = self._format_patterns(patterns)
+                context_parts.append(patterns_context)
+                total_chars += len(patterns_context)
+
+            # 2. Get recent sessions for this project
+            project_sessions = self.store.get_sessions_for_project(
+                cwd=cwd,
+                limit=20,
+                recency_days=self.recency_boost_days,
+            )
+
+            if not project_sessions:
+                # Fall back to any recent sessions within recency window
+                project_sessions = self.store.get_sessions(
+                    limit=self.max_results
+                )
+
+            if project_sessions:
+                # Rank sessions by relevance
+                ranked_sessions = self._rank_sessions(project_sessions, cwd)
+
+                # Also try vector search for semantic similarity
+                vector_sessions = self._vector_search_sessions(cwd)
+                if vector_sessions:
+                    # Merge vector results, avoiding duplicates
+                    existing_ids = {s["id"] for s in ranked_sessions}
+                    for vs in vector_sessions:
+                        if vs["id"] not in existing_ids:
+                            ranked_sessions.append(vs)
+
+                # Get observations from top sessions
+                for session in ranked_sessions[: self.max_results]:
+                    session_id = session["id"]
+                    observations = self.store.get_observations_for_session(
+                        session_id, limit=10
+                    )
+
+                    if not observations:
+                        continue
+
+                    session_context = self._format_session(session, observations)
+
+                    if total_chars + len(session_context) > max_chars:
+                        break
+
+                    context_parts.append(session_context)
+                    total_chars += len(session_context)
+
+            if not context_parts:
+                return None
+
+            return self._wrap_context(context_parts)
+
+        except Exception as e:
+            logger.error(f"Context injection failed: {e}")
+            return None
+
+    def _get_relevant_patterns(self, cwd: str) -> list[dict[str, Any]]:
+        """Get patterns relevant to the current project."""
+        try:
+            # Get patterns for this project
+            project_patterns = self.store.get_patterns_for_project(cwd, limit=5)
+
+            # Also get high-occurrence global patterns
+            global_patterns = self.store.find_patterns(
+                min_occurrences=2,
+                limit=5,
+            )
+
+            # Merge, deduplicate by hash
+            seen_hashes = set()
+            combined = []
+            for p in project_patterns + global_patterns:
+                h = p.get("pattern_hash")
+                if h and h not in seen_hashes:
+                    seen_hashes.add(h)
+                    combined.append(p)
+
+            return combined[:5]
+        except Exception as e:
+            logger.debug(f"Pattern retrieval failed: {e}")
+            return []
+
+    def _format_patterns(self, patterns: list[dict[str, Any]]) -> str:
+        """Format patterns for injection."""
+        lines = ["## 🔁 Recurring Patterns"]
+
+        for p in patterns:
+            ptype = p.get("pattern_type", "unknown")
+            title = p.get("title", "Untitled")
+            desc = p.get("description", "")
+            count = p.get("occurrence_count", 1)
+
+            emoji = {"error": "❌", "fix": "✅", "decision": "📝", "preference": "⚙️", "architecture": "🏗️"}.get(ptype, "•")
+            lines.append(f"{emoji} **{title}** ({count}×)")
+            if desc:
+                lines.append(f"   {desc[:150]}")
+
+        return "\n".join(lines)
+
+    def _vector_search_sessions(
+        self, cwd: str
+    ) -> list[dict[str, Any]]:
+        """Find semantically similar sessions via vector search.
+
+        Searches for sessions related to the current project context.
+        """
+        try:
+            # Use project name and recent activity as query
+            import os
+            project_name = os.path.basename(cwd.rstrip("/\\"))
+            query = f"project {project_name} coding session"
+
+            vector_results = self.vector_store.search(query, limit=10)
+            if not vector_results:
+                return []
+
+            # Get unique session IDs from vector results
+            session_ids = list({
+                vr["session_id"] for vr in vector_results
+                if vr.get("session_id")
+            })
+
+            if not session_ids:
+                return []
+
+            # Fetch full session data
+            all_sessions = self.store.get_sessions(limit=100)
+            session_map = {s["id"]: s for s in all_sessions}
+
+            results = []
+            for sid in session_ids:
+                if sid in session_map:
+                    session = session_map[sid]
+                    session["_relevance_score"] = 0.6  # Base score for vector match
+                    results.append(session)
+
+            return results
+        except Exception as e:
+            logger.debug(f"Vector session search failed: {e}")
+            return []
+
+    def _rank_sessions(
+        self, sessions: list[dict[str, Any]], cwd: str
+    ) -> list[dict[str, Any]]:
+        """Rank sessions by relevance to current project.
+
+        Scoring:
+        - Exact CWD match: +1.0
+        - Same project name: +0.8
+        - Parent path match: +0.5
+        - Recent sessions get small boost
+        - Sessions with more observations get small boost
+        """
+        import os
+
+        project_name = os.path.basename(cwd.rstrip("/\\"))
+        parent_dir = os.path.dirname(cwd)
+        now = datetime.now(timezone.utc)
+
+        scored = []
+        for session in sessions:
+            score = 0.0
+            session_cwd = session.get("cwd", "")
+            session_name = os.path.basename(session_cwd.rstrip("/\\"))
+
+            # Path matching
+            if session_cwd == cwd:
+                score += 1.0
+            elif session_name == project_name:
+                score += 0.8
+            elif parent_dir and session_cwd.startswith(parent_dir):
+                score += 0.5
+            elif cwd in session_cwd or session_cwd in cwd:
+                score += 0.3
+
+            # Observation count boost (more activity = more relevant)
+            obs_count = session.get("observation_count", 0)
+            score += min(obs_count / 100, 0.2)  # Max 0.2 boost
+
+            # Recency boost (exponential decay)
+            started_at = session.get("started_at")
+            if started_at:
+                try:
+                    # Parse SQLite timestamp
+                    if isinstance(started_at, str):
+                        session_time = datetime.fromisoformat(
+                            started_at.replace("Z", "+00:00")
+                        )
+                    else:
+                        session_time = started_at
+                    days_old = (now - session_time).total_seconds() / 86400
+                    recency_score = max(0, 1.0 - (days_old / self.recency_boost_days))
+                    score += recency_score * 0.3  # Max 0.3 boost
+                except Exception:
+                    pass
+
+            session["_relevance_score"] = score
+            scored.append(session)
+
+        # Sort by score descending
+        scored.sort(key=lambda s: s["_relevance_score"], reverse=True)
+
+        # Filter by min_relevance
+        filtered = [s for s in scored if s["_relevance_score"] >= self.min_relevance]
+
+        # If filtering leaves nothing, return top results anyway
+        return filtered if filtered else scored[: self.max_results]
+
+    def _format_session(
+        self, session: dict[str, Any], observations: list[dict[str, Any]]
+    ) -> str:
+        """Format a session and its observations."""
+        lines = []
+        session_id_short = session["id"][:8]
+        started = session.get("started_at", "unknown")
+        score = session.get("_relevance_score", 0.0)
+
+        lines.append(
+            f"### Session {session_id_short} ({started})"
+            + (f" — relevance: {score:.2f}" if score > 0 else "")
+        )
+
+        for obs in observations:
+            event = obs.get("event_type", "Unknown")
+            tool = obs.get("tool_name", "")
+            file_path = obs.get("file_path", "")
+
+            detail = ""
+            if tool:
+                detail += f" → {tool}"
+            if file_path:
+                detail += f" `{file_path}`"
+
+            content = (
+                obs.get("tool_output") or obs.get("error") or obs.get("prompt") or ""
+            )
+            if content:
+                content = content[:200] + "..." if len(content) > 200 else content
+                detail += f": {content}"
+
+            lines.append(f"- **{event}**{detail}")
+
+        return "\n".join(lines)
+
+    def _wrap_context(self, context_parts: list[str]) -> str:
+        """Wrap context parts in header/footer based on format."""
+        if self.format == "json":
+            import json
+
+            return json.dumps(
+                {"previous_context": context_parts}, ensure_ascii=False, indent=2
+            )
+
+        if self.format == "plain":
+            return "Previous Context\n\n" + "\n\n".join(context_parts) + "\n---\n"
+
+        # Default: markdown
+        header = "## Previous Context\n\n"
+        footer = "\n---\n"
+        return header + "\n\n".join(context_parts) + footer

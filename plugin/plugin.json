@@ -1,0 +1,82 @@
+{
+  "name": "kimi-mneme",
+  "version": "1.0.0",
+  "description": "Persistent memory plugin for Kimi Code CLI — search and retrieve past session context",
+  "tools": [
+    {
+      "name": "mneme_search",
+      "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure.",
+      "command": ["python3", "tools/search.py"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query — natural language or keywords"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["bugfix", "feature", "refactor", "docs", "test"],
+            "description": "Filter by observation type"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "description": "Maximum results (default: 10, max: 50)"
+          },
+          "date_from": {
+            "type": "string",
+            "description": "ISO date filter (inclusive), e.g. 2026-04-01"
+          },
+          "date_to": {
+            "type": "string",
+            "description": "ISO date filter (inclusive), e.g. 2026-05-01"
+          },
+          "project": {
+            "type": "string",
+            "description": "Filter by project/directory name"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "mneme_timeline",
+      "description": "Get chronological context around a specific observation. Shows what happened before and after. Use after mneme_search to understand context.",
+      "command": ["python3", "tools/timeline.py"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "observation_id": {
+            "type": "integer",
+            "description": "Center observation ID from search results"
+          },
+          "radius": {
+            "type": "integer",
+            "default": 5,
+            "description": "Number of observations before/after (default: 5, max: 20)"
+          }
+        },
+        "required": ["observation_id"]
+      }
+    },
+    {
+      "name": "mneme_get",
+      "description": "Fetch full observation details by IDs. Always batch multiple IDs in one call. Use as the final step after identifying relevant observations.",
+      "command": ["python3", "tools/get.py"],
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Array of observation IDs to fetch"
+          }
+        },
+        "required": ["ids"]
+      }
+    }
+  ]
+}

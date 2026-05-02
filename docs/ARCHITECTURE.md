@@ -1,0 +1,405 @@
+# Architecture
+
+## System Overview
+
+kimi-mneme consists of 4 layers that work together to capture, compress, store, and retrieve coding session context.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Kimi Code CLI                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
+│  │  Lifecycle   │  │   Plugin     │  │      User Prompts        │  │
+│  │   Hooks      │  │   Tools      │  │                          │  │
+│  │  (13 events) │  │ (3 commands) │  │                          │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────────────────────┘  │
+└─────────┼─────────────────┼─────────────────────────────────────────┘
+          │                 │
+          ▼                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Core Engine                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
+│  │  Extractor   │  │  Compressor  │  │       Injector           │  │
+│  │              │  │              │  │                          │  │
+│  │ - Parse tool │  │ - Semantic   │  │ - Query relevant         │  │
+│  │   calls      │  │   summary    │  │   context                │  │
+│  │ - Extract    │  │ - Keyword    │  │ - Format for LLM         │  │
+│  │   file paths │  │   extraction │  │ - Inject at session      │  │
+│  │ - Capture    │  │ - Token      │  │   start                  │  │
+│  │   errors     │  │   counting   │  │ - Cross-session patterns │  │
+│  │ - Detect     │  │              │  │                          │  │
+│  │   truncation │  │              │  │                          │  │
+│  │ - Checkpoint │  │              │  │                          │  │
+│  │   on compact│  │              │  │                          │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────────────────────┘  │
+└─────────┼─────────────────┼─────────────────────────────────────────┘
+          │                 │
+          ▼                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Storage Layer                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
+│  │   SQLite     │  │    Chroma    │  │      Web Server          │  │
+│  │              │  │   (vectors)  │  │                          │  │
+│  │ - Sessions   │  │              │  │ - FastAPI app            │  │
+│  │ - Observations│  │ - Embeddings │  │ - REST API               │  │
+│  │ - Summaries  │  │ - Similarity │  │ - WebSocket for          │  │
+│  │ - Checkpoints│  │   search     │  │   real-time updates      │  │
+│  │ - Patterns   │  │              │  │                          │  │
+│  │ - Compaction │  │              │  │                          │  │
+│  │ - Truncated  │  │              │  │                          │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## Data Flow
+
+### 1. Capture (Session Recording)
+
+```
+User runs kimi → SessionStart hook fires → Create session record
+     ↓
+User sends prompt → UserPromptSubmit hook → Store prompt
+     ↓
+AI uses tool → PostToolUse hook → Extract and store observation
+     ↓
+Context compaction → PostCompact hook → Create checkpoint
+     ↓
+Session ends → SessionEnd hook → Mark session complete + detect patterns
+```
+
+### 2. Compression (AI Summarization)
+
+```
+Raw observations → Extractor (clean & structure)
+     ↓
+Compressor (Moonshot API) → Semantic summary
+     ↓
+Store summary + keywords in SQLite
+     ↓
+Generate embedding → Store in Chroma
+```
+
+### 3. Retrieval (Context Injection)
+
+```
+New session starts → SessionStart hook
+     ↓
+Check for previous checkpoints → Inject resume context
+     ↓
+Query cross-session patterns → Inject recurring patterns
+     ↓
+Injector queries Chroma (vector search)
+     ↓
+Rank by relevance + recency
+     ↓
+Format as context block
+     ↓
+Inject into system prompt
+```
+
+### 4. Search (AI-Initiated)
+
+```
+User asks "find that auth bug" → AI calls mneme_search
+     ↓
+Plugin tool → Hybrid search (SQLite FTS + Chroma vectors)
+     ↓
+Progressive disclosure:
+  Layer 1: Compact index (~50 tokens/result)
+  Layer 2: Timeline around results
+  Layer 3: Full details for selected IDs
+     ↓
+Return to AI
+```
+
+## Database Schema
+
+### SQLite
+
+```sql
+-- Sessions table
+CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    cwd TEXT NOT NULL,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP,
+    summary TEXT,
+    token_count INTEGER,
+    project TEXT
+);
+
+-- Observations table (raw events)
+CREATE TABLE observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,  -- PostToolUse, UserPromptSubmit, etc.
+    tool_name TEXT,
+    tool_input TEXT,
+    tool_output TEXT,
+    error TEXT,
+    file_path TEXT,
+    prompt TEXT,
+    agent_name TEXT,
+    content_hash TEXT,         -- SHA-256 for deduplication
+    discovery_tokens INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+-- Summaries table (AI-compressed)
+CREATE TABLE summaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    observation_ids TEXT,  -- JSON array of source observation IDs
+    content TEXT NOT NULL,
+    keywords TEXT,  -- JSON array
+    embedding_id TEXT,  -- Chroma document ID
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+-- Session checkpoints (for resume after compaction/crash)
+CREATE TABLE session_checkpoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    checkpoint_number INTEGER NOT NULL DEFAULT 1,
+    checkpoint_type TEXT NOT NULL DEFAULT 'auto'
+        CHECK(checkpoint_type IN ('auto', 'manual', 'compaction', 'crash')),
+    summary TEXT NOT NULL,
+    key_decisions TEXT,        -- JSON array
+    open_tasks TEXT,           -- JSON array
+    token_count INTEGER,
+    observation_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+
+-- Compaction events (context compaction tracking)
+CREATE TABLE compaction_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    compacted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    tokens_before INTEGER,
+    tokens_after INTEGER,
+    observations_dropped INTEGER,
+    summary_generated TEXT,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+
+-- Cross-session patterns (errors, fixes, decisions)
+CREATE TABLE patterns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern_type TEXT NOT NULL
+        CHECK(pattern_type IN ('error', 'fix', 'decision', 'preference', 'architecture')),
+    pattern_hash TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    first_seen_session_id TEXT,
+    last_seen_session_id TEXT,
+    occurrence_count INTEGER NOT NULL DEFAULT 1,
+    related_files TEXT,        -- JSON array
+    related_observation_ids TEXT,  -- JSON array
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Truncated tool outputs (>100K chars)
+CREATE TABLE truncated_outputs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    observation_id INTEGER NOT NULL,
+    original_size INTEGER NOT NULL,
+    truncated_size INTEGER NOT NULL,
+    summary TEXT,
+    head_preview TEXT,
+    tail_preview TEXT,
+    line_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
+);
+
+-- Full-text search index
+CREATE VIRTUAL TABLE observations_fts USING fts5(
+    content='observations',
+    content_rowid='id',
+    tool_name, tool_input, tool_output
+);
+```
+
+### Chroma Vector DB
+
+```python
+# Collection: mneme_observations
+{
+    "ids": ["obs_123", "obs_124", ...],
+    "embeddings": [[0.1, 0.2, ...], ...],
+    "metadatas": [
+        {
+            "session_id": "sess_abc",
+            "event_type": "PostToolUse",
+            "tool_name": "WriteFile",
+            "file_path": "/project/src/auth.ts",
+            "timestamp": "2026-05-02T10:00:00Z"
+        },
+        ...
+    ],
+    "documents": ["Created auth middleware...", ...]
+}
+```
+
+## Hook Events
+
+| Event | Trigger | Data Captured |
+|-------|---------|---------------|
+| `SessionStart` | New/resumed session | `session_id`, `cwd`, `source` |
+| `UserPromptSubmit` | User sends message | `prompt` |
+| `PreToolUse` | Before tool execution | `tool_name`, `tool_input` |
+| `PostToolUse` | After successful tool | `tool_name`, `tool_input`, `tool_output` |
+| `PostToolUseFailure` | After failed tool | `tool_name`, `tool_input`, `error` |
+| `SubagentStart` | Subagent launched | `agent_name`, `prompt` |
+| `SubagentStop` | Subagent completed | `agent_name`, `response` |
+| `PreCompact` | Before context compaction | `trigger`, `token_count` |
+| `PostCompact` | After compaction | `trigger`, `estimated_token_count` |
+| `Stop` | Agent turn ends | `stop_hook_active` |
+| `StopFailure` | Turn ended with error | `error_type`, `error_message` |
+| `SessionEnd` | Session closed | `reason` |
+| `Notification` | Notification delivered | `sink`, `type`, `title`, `body` |
+
+## Plugin Tools
+
+| Tool | Purpose | Parameters |
+|------|---------|------------|
+| `mneme_search` | Search memory index | `query`, `type`, `limit`, `date_from`, `date_to` |
+| `mneme_timeline` | Get chronological context | `observation_id`, `radius` |
+| `mneme_get` | Fetch full observation details | `ids` (array) |
+
+## Progressive Disclosure
+
+To minimize token usage, search follows a 3-layer pattern:
+
+```
+Layer 1: mneme_search
+  → Returns compact index: id, timestamp, type, snippet
+  → ~50-100 tokens per result
+
+Layer 2: mneme_timeline
+  → Returns context around specific observation
+  → ~200-500 tokens per result
+
+Layer 3: mneme_get
+  → Returns full observation details
+  → ~500-1000 tokens per result
+
+Total savings: ~10x vs fetching everything upfront
+```
+
+## Session Checkpoint & Resume
+
+When Kimi CLI compacts context mid-session, mneme creates a checkpoint:
+
+```
+PostCompact hook fires
+     ↓
+Record compaction event (tokens_before, tokens_after)
+     ↓
+Extract key decisions from recent observations
+     ↓
+Extract open tasks from user prompts
+     ↓
+Create checkpoint with summary + decisions + tasks
+     ↓
+On next SessionStart: inject checkpoint context
+```
+
+Resume context format:
+```markdown
+## 📌 Session Resume Context
+**Checkpoint #3** (compaction)
+
+### Summary
+Session checkpoint after context compaction. Tokens reduced from 5000 to 2000.
+
+### Key Decisions
+- Use FastAPI for API layer
+- SQLite for local storage
+
+### Open Tasks
+- [ ] Add comprehensive tests
+- [ ] Deploy to staging
+```
+
+## Cross-Session Pattern Detection
+
+mneme automatically detects recurring patterns across sessions:
+
+| Pattern Type | Detection Method | Example |
+|-------------|------------------|---------|
+| `error` | Same tool fails ≥2 times | "Recurring error in Shell: npm test" |
+| `fix` | Error followed by success on same file | "Fixed error in src/auth.ts" |
+| `decision` | User prompt contains decision keywords | "Decided to use PostgreSQL" |
+| `preference` | Repeated coding style choices | "Prefer TypeScript over JavaScript" |
+| `architecture` | Structural decisions | "Use repository pattern for DB access" |
+
+Patterns are injected into new sessions as "Recurring Patterns" section.
+
+## Privacy Model
+
+Content wrapped in `<private>...</private>` tags is excluded from storage:
+
+```python
+def sanitize_content(text: str) -> str:
+    """Remove private blocks before storage."""
+    import re
+    return re.sub(r'<private>.*?</private>', '[PRIVATE]', text, flags=re.DOTALL)
+```
+
+Additional exclusion via patterns in config:
+
+```json
+{
+  "privacy": {
+    "exclude_patterns": ["*.env*", "*secret*", "*password*", "*token*"]
+  }
+}
+```
+
+## Compression Strategy
+
+Raw observations are compressed when:
+- Session ends
+- Token count exceeds threshold
+- Explicitly requested
+
+Compression prompt:
+
+```
+Summarize the following coding session observations into a concise,
+semantic summary. Include:
+- What was accomplished
+- Key files modified
+- Important decisions made
+- Any errors or blockers
+
+Observations:
+{observations}
+
+Summary:
+```
+
+## Performance Considerations
+
+| Metric | Target |
+|--------|--------|
+| Hook execution | < 100ms (fire-and-forget) |
+| Search query | < 500ms |
+| Vector search | < 200ms |
+| Web UI load | < 1s |
+| DB size growth | ~1MB per 100 sessions |
+| Checkpoint creation | < 50ms |
+| Pattern detection | < 100ms (async) |
+
+## Security
+
+- All hook commands run in isolated subprocess
+- Database is local-only (no network access)
+- API key stored in config, not in code
+- Privacy tags prevent accidental data leakage
+- Truncated outputs preserve head/tail previews without full content

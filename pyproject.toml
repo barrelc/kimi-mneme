@@ -1,0 +1,85 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kimi-mneme"
+version = "1.1.0"
+description = "Persistent memory plugin for Kimi Code CLI"
+readme = "README.md"
+license = { text = "AGPL-3.0" }
+requires-python = ">=3.10"
+authors = [
+    { name = "kimi-mneme contributors" }
+]
+keywords = ["kimi", "cli", "memory", "ai", "agent", "plugin"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Tools",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "websockets>=12.0",
+    "chromadb>=0.4.24",
+    "sentence-transformers>=2.6.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.6.0",
+    "loguru>=0.7.0",
+    "python-dotenv>=1.0.0",
+    "click>=8.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "build>=1.1.0",
+]
+
+[project.scripts]
+mneme = "mneme.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/barrelc/kimi-mneme"
+Documentation = "https://github.com/barrelc/kimi-mneme#readme"
+Repository = "https://github.com/barrelc/kimi-mneme"
+Issues = "https://github.com/barrelc/kimi-mneme/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mneme"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312", "py313"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
