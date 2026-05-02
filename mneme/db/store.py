@@ -307,11 +307,24 @@ class ObservationStore:
     # -----------------------------------------------------------------------
 
     def get_sessions(self, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
-        """List sessions."""
+        """List sessions with enriched metadata."""
         with self._get_conn() as conn:
             rows = conn.execute(
                 """
-                SELECT s.*, COUNT(o.id) as observation_count
+                SELECT 
+                    s.*,
+                    COUNT(o.id) as observation_count,
+                    MAX(o.created_at) as last_activity,
+                    (SELECT prompt FROM observations 
+                     WHERE session_id = s.id AND event_type = 'UserPromptSubmit' AND prompt != ''
+                     ORDER BY created_at DESC LIMIT 1) as last_prompt,
+                    (SELECT prompt FROM observations 
+                     WHERE session_id = s.id AND event_type = 'UserPromptSubmit' AND prompt != ''
+                     ORDER BY created_at ASC LIMIT 1) as first_prompt,
+                    (SELECT COUNT(*) FROM observations 
+                     WHERE session_id = s.id AND event_type = 'UserPromptSubmit') as prompt_count,
+                    (SELECT COUNT(*) FROM observations 
+                     WHERE session_id = s.id AND event_type = 'PostToolUse') as tool_count
                 FROM sessions s
                 LEFT JOIN observations o ON s.id = o.session_id
                 GROUP BY s.id
