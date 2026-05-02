@@ -30,25 +30,43 @@
 
 ## Quick Start
 
-### Install via `uvx` (recommended)
+### Install via `uv tool` (recommended — permanent install)
 
 ```bash
-# One-shot bootstrap — sets up everything automatically
-uvx --from git+https://github.com/barrelc/kimi-mneme.git mneme bootstrap
+# Install as a permanent tool
+uv tool install git+https://github.com/barrelc/kimi-mneme.git
 
-# Or install latest release
-uvx --from git+https://github.com/barrelc/kimi-mneme.git@v1.1.0 mneme bootstrap
+# Run bootstrap (sets up hooks, plugin, DB, server)
+mneme bootstrap
 
-# Or if you already have the repo cloned:
-cd kimi-mneme
+# Start using Kimi CLI
+kimi
+```
+
+**Why `uv tool` instead of `uvx`?**
+- No cache issues — installed permanently, not temporary
+- Faster startup — no re-installation on each run
+- Easy updates — `uv tool upgrade kimi-mneme`
+- Commands always available: `mneme stats`, `mneme server`, etc.
+
+### Update
+
+```bash
+# Update to latest version
+uv tool upgrade kimi-mneme
+
+# Re-run bootstrap to update hooks and config
 mneme bootstrap
 ```
 
-The bootstrap command will:
-- Register hooks in `~/.kimi/config.toml`
-- Install the Kimi CLI plugin
-- Create the SQLite database at `~/.kimi/mneme/mneme.db`
-- Start the web server
+### Alternative: Install via `uvx` (temporary, no install)
+
+```bash
+# One-shot run (slower, re-installs each time)
+uvx --refresh --from git+https://github.com/barrelc/kimi-mneme.git mneme bootstrap
+```
+
+> ⚠️ `uvx` caches installations. Use `--refresh` to force update, or switch to `uv tool install` for a better experience.
 
 ### Install via pip
 
@@ -56,6 +74,13 @@ The bootstrap command will:
 pip install kimi-mneme
 mneme bootstrap
 ```
+
+### What `bootstrap` does
+
+- Registers hooks in `~/.kimi/config.toml`
+- Installs the Kimi CLI plugin
+- Creates the SQLite database at `~/.kimi/mneme/mneme.db`
+- Starts the web server on `http://localhost:37777`
 
 ### Use Kimi CLI normally
 
@@ -135,6 +160,7 @@ open http://localhost:37777
 
 ```bash
 mneme bootstrap          # One-shot setup (hooks, plugin, DB, server)
+mneme update             # Update hooks and config to latest version
 mneme server             # Start web server
 mneme init               # Initialize database only
 mneme stats              # Show database statistics
