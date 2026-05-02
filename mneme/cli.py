@@ -384,17 +384,17 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
 def _start_server() -> bool:
     """Start the web server."""
     from mneme.config import load_config
-    
+
     config = load_config()
     server_cfg = config.get("server", {})
-    
+
     if not server_cfg.get("auto_start", True):
         click.echo(" Auto-start disabled in config")
         return True
-    
+
     host = server_cfg.get("host", "127.0.0.1")
     port = server_cfg.get("port", 37777)
-    
+
     # Check if already running
     import socket
     try:
@@ -403,7 +403,7 @@ def _start_server() -> bool:
             return True
     except OSError:
         pass  # Not running, start it
-    
+
     click.echo(" Starting web server...")
 
     try:

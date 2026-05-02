@@ -16,6 +16,13 @@ def main() -> None:
     """Handle UserPromptSubmit hook event."""
     try:
         input_data = json.load(sys.stdin)
+        
+        # DEBUG: log what we received
+        debug_path = Path.home() / ".kimi" / "mneme" / "hook_debug.log"
+        with open(debug_path, "a", encoding="utf-8") as f:
+            f.write("=== UserPromptSubmit ===\n")
+            f.write(json.dumps(input_data, ensure_ascii=False, indent=2))
+            f.write("\n\n")
 
         extractor = Extractor()
         extractor.handle_user_prompt_submit(input_data)
