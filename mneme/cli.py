@@ -175,13 +175,20 @@ def _create_default_config() -> bool:
 
 
 def _register_hooks() -> bool:
-    """Register hooks in Kimi CLI config."""
+    """Register hooks in Kimi CLI config.
+
+    Hooks are copied to ~/.kimi/mneme/hooks/ so they survive uvx cache
+    purges and remain at a stable path.
+    """
     click.echo("Registering hooks...")
 
     kimi_config = get_kimi_dir() / "config.toml"
     project_root = get_project_root()
-    hooks_dir = project_root / "hooks"
-    python_exe = sys.executable
+    source_hooks_dir = project_root / "hooks"
+
+    # Copy hooks to a stable location inside ~/.kimi/mneme/hooks
+    stable_hooks_dir = get_mneme_dir() / "hooks"
+    stable_hooks_dir.mkdir(parents=True, exist_ok=True)
 
     hooks = [
         ("SessionStart", "session_start.py"),
@@ -191,9 +198,16 @@ def _register_hooks() -> bool:
         ("UserPromptSubmit", "user_prompt_submit.py"),
     ]
 
+    for _, script in hooks:
+        src = source_hooks_dir / script
+        dst = stable_hooks_dir / script
+        if src.exists():
+            shutil.copy2(src, dst)
+
+    python_exe = sys.executable
     hook_entries = []
     for event, script in hooks:
-        script_path = hooks_dir / script
+        script_path = stable_hooks_dir / script
         # Use forward slashes in paths to avoid TOML escape issues on Windows
         cmd = f"{python_exe} {script_path}".replace("\\", "/")
         hook_entries.append(f'[[hooks]]\nevent = "{event}"\ncommand = "{cmd}"\n')
