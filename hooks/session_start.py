@@ -10,11 +10,24 @@ import sys
 import traceback
 from pathlib import Path
 
-# Add project to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from mneme.config import load_config
-from mneme.core.extractor import Extractor
+# Ensure mneme package is importable — it may be installed via uv tool
+# or available in the Python environment that runs this hook
+try:
+    from mneme.config import load_config
+    from mneme.core.extractor import Extractor
+except ImportError:
+    # Fallback: try to find mneme in common uv tool locations
+    import site
+    uv_tool_paths = [
+        Path.home() / "AppData" / "Roaming" / "uv" / "tools" / "kimi-mneme" / "Lib" / "site-packages",
+        Path.home() / ".local" / "share" / "uv" / "tools" / "kimi-mneme" / "lib" / "python3.10" / "site-packages",
+    ]
+    for p in uv_tool_paths:
+        if p.exists():
+            sys.path.insert(0, str(p))
+            break
+    from mneme.config import load_config
+    from mneme.core.extractor import Extractor
 
 
 def _is_server_running(host: str, port: int) -> bool:
