@@ -109,6 +109,11 @@ def main() -> None:
         # Auto-start server if configured
         _start_server()
         
+        # Force UTF-8 encoding for stdin on Windows
+        if sys.platform == "win32":
+            import io
+            sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
+        
         input_data = json.load(sys.stdin)
 
         extractor = Extractor()

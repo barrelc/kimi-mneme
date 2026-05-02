@@ -52,6 +52,11 @@ def _extract_prompt_from_wire(session_id: str, cwd: str) -> str:
 def main() -> None:
     """Handle UserPromptSubmit hook event."""
     try:
+        # Force UTF-8 encoding for stdin on Windows
+        if sys.platform == "win32":
+            import io
+            sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
+        
         input_data = json.load(sys.stdin)
         
         session_id = input_data.get("session_id", "")

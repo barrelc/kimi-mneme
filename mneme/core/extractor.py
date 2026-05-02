@@ -35,15 +35,23 @@ class Extractor:
         # Check if this is a resumed session — inject checkpoint context
         resume_context = self._get_resume_context(session_id)
 
-        # Try to inject context from previous sessions
+        # 1. Fast local summary of recent activity
+        from mneme.core.summarizer import FastSummarizer
+
+        summarizer = FastSummarizer()
+        brief = summarizer.get_project_brief(cwd, max_sessions=2, current_session_id=session_id)
+
+        # 2. Full context injection from vector + pattern search
         from mneme.core.injector import Injector
 
         injector = Injector()
-        context = injector.get_context(cwd)
+        context = injector.get_context(cwd, current_session_id=session_id)
 
         parts = []
         if resume_context:
             parts.append(resume_context)
+        if brief:
+            parts.append(brief)
         if context:
             parts.append(context)
 

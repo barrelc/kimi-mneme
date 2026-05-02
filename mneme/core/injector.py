@@ -27,11 +27,12 @@ class Injector:
         self.store = ObservationStore()
         self.vector_store = VectorStore()
 
-    def get_context(self, cwd: str) -> str | None:
+    def get_context(self, cwd: str, current_session_id: str | None = None) -> str | None:
         """Get relevant context for a new session.
 
         Args:
             cwd: Current working directory (project context).
+            current_session_id: ID of current session to exclude.
 
         Returns:
             Formatted context string or None if disabled/no results.
@@ -61,6 +62,10 @@ class Injector:
             if not project_sessions:
                 # Fall back to any recent sessions within recency window
                 project_sessions = self.store.get_sessions(limit=self.max_results)
+
+            # Exclude current session
+            if current_session_id:
+                project_sessions = [s for s in project_sessions if s["id"] != current_session_id]
 
             if project_sessions:
                 # Rank sessions by relevance
