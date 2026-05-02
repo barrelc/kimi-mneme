@@ -385,17 +385,125 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Placeholder actions
-function viewTimeline(sessionId) {
-  addLog('info', `Viewing timeline for ${sessionId}`);
+// View session timeline
+async function viewTimeline(sessionId) {
+  addLog('info', `Loading timeline for ${sessionId}`);
+  
+  try {
+    // Get latest observation for this session
+    const res = await fetch(`${API_BASE}/sessions?limit=50`);
+    const data = await res.json();
+    const session = data.sessions.find(s => s.id === sessionId);
+    
+    if (!session || !session.observation_count) {
+      showModal('Timeline', '<p>No observations in this session.</p>');
+      return;
+    }
+    
+    // For now, show session summary
+    const content = `
+      <div style="padding: 1rem;">
+        <h3>Session ${sessionId.substring(0, 8)}</h3>
+        <p><strong>Project:</strong> ${session.cwd || 'Unknown'}</p>
+        <p><strong>Started:</strong> ${session.started_at || 'Unknown'}</p>
+        <p><strong>Observations:</strong> ${session.observation_count || 0}</p>
+        <p><strong>Prompts:</strong> ${session.prompt_count || 0}</p>
+        <p><strong>Tools:</strong> ${session.tool_count || 0}</p>
+        ${session.first_prompt ? `<p><strong>First message:</strong> ${escapeHtml(session.first_prompt.substring(0, 200))}</p>` : ''}
+        ${session.last_prompt ? `<p><strong>Last message:</strong> ${escapeHtml(session.last_prompt.substring(0, 200))}</p>` : ''}
+      </div>
+    `;
+    showModal('Session Timeline', content);
+  } catch (err) {
+    addLog('error', `Failed to load timeline: ${err.message}`);
+  }
 }
 
-function viewDetails(sessionId) {
-  addLog('info', `Viewing details for ${sessionId}`);
+// View session details
+async function viewDetails(sessionId) {
+  addLog('info', `Loading details for ${sessionId}`);
+  
+  try {
+    // Search for observations in this session
+    const res = await fetch(`${API_BASE}/search?q=session_id:${sessionId.substring(0, 8)}&limit=20`);
+    const data = await res.json();
+    
+    let content = '<div style="padding: 1rem;">';
+    content += `<h3>Session ${sessionId.substring(0, 8)}</h3>`;
+    
+    if (!data.results || data.results.length === 0) {
+      content += '<p>No observations found.</p>';
+    } else {
+      content += `<p>Found ${data.results.length} observations:</p>`;
+      content += '<div style="max-height: 400px; overflow-y: auto;">';
+      data.results.forEach(obs => {
+        content += `
+          <div style="border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; margin: 0.5rem 0;">
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+              #${obs.id} · ${obs.timestamp} · ${obs.type}
+            </div>
+            ${obs.tool_name ? `<div style="font-weight: 500;">Tool: ${obs.tool_name}</div>` : ''}
+            ${obs.snippet ? `<div style="margin-top: 0.5rem; font-size: 0.9rem;">${escapeHtml(obs.snippet.substring(0, 300))}</div>` : ''}
+          </div>
+        `;
+      });
+      content += '</div>';
+    }
+    
+    content += '</div>';
+    showModal('Session Details', content);
+  } catch (err) {
+    addLog('error', `Failed to load details: ${err.message}`);
+  }
 }
 
 function viewObservation(id) {
   addLog('info', `Viewing observation #${id}`);
+}
+
+// Helper: show modal
+function showModal(title, content) {
+  // Remove existing modal
+  const existing = document.getElementById('modal-overlay');
+  if (existing) existing.remove();
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'modal-overlay';
+  overlay.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+  `;
+  
+  overlay.innerHTML = `
+    <div style="
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; max-width: 800px; width: 90%; max-height: 80vh;
+      display: flex; flex-direction: column;
+    ">
+      <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">${title}</h3>
+        <button onclick="document.getElementById('modal-overlay').remove()" style="
+          background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;
+        ">×</button>
+      </div>
+      <div style="overflow-y: auto; flex: 1;">${content}</div>
+    </div>
+  `;
+  
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+  
+  document.body.appendChild(overlay);
+}
+
+// Helper: escape HTML
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function copyId(id) {
