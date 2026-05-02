@@ -23,6 +23,36 @@ def main() -> None:
             f.write("=== UserPromptSubmit ===\n")
             f.write(json.dumps(input_data, ensure_ascii=False, indent=2))
             f.write("\n\n")
+        
+        # Try to extract prompt from various fields
+        prompt = input_data.get("prompt", "")
+        
+        # If prompt is empty, try user_input or content parts
+        if not prompt:
+            user_input = input_data.get("user_input", [])
+            if isinstance(user_input, list):
+                # Extract text from ContentPart list
+                texts = []
+                for part in user_input:
+                    if isinstance(part, dict):
+                        if part.get("type") == "text":
+                            texts.append(part.get("text", ""))
+                        elif "text" in part:
+                            texts.append(part["text"])
+                prompt = " ".join(texts)
+            elif isinstance(user_input, str):
+                prompt = user_input
+        
+        # Update input_data with extracted prompt
+        if prompt:
+            input_data["prompt"] = prompt
+            
+            # Log that we extracted it
+            with open(debug_path, "a", encoding="utf-8") as f:
+                f.write(f"EXTRACTED PROMPT: {prompt[:100]}...\n\n")
+        else:
+            with open(debug_path, "a", encoding="utf-8") as f:
+                f.write("WARNING: Could not extract prompt\n\n")
 
         extractor = Extractor()
         extractor.handle_user_prompt_submit(input_data)
