@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from typing import Any
 
 from loguru import logger
@@ -29,10 +28,8 @@ class VectorStore:
                 from chromadb.utils import embedding_functions
 
                 self._client = chromadb.PersistentClient(path=self.persist_dir)
-                self._embedding_fn = (
-                    embedding_functions.SentenceTransformerEmbeddingFunction(
-                        model_name=self.embedding_model
-                    )
+                self._embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+                    model_name=self.embedding_model
                 )
                 self._collection = self._client.get_or_create_collection(
                     name="mneme_observations",
@@ -116,15 +113,14 @@ class VectorStore:
                     output.append(
                         {
                             "embedding_id": embedding_id,
-                            "observation_id": results["metadatas"][0][i].get(
-                                "observation_id"
-                            ),
+                            "observation_id": results["metadatas"][0][i].get("observation_id"),
                             "session_id": results["metadatas"][0][i].get("session_id"),
                             "distance": results["distances"][0][i],
-                            "snippet": results["documents"][0][i][:200]
-                            + "..."
-                            if len(results["documents"][0][i]) > 200
-                            else results["documents"][0][i],
+                            "snippet": (
+                                results["documents"][0][i][:200] + "..."
+                                if len(results["documents"][0][i]) > 200
+                                else results["documents"][0][i]
+                            ),
                         }
                     )
             return output

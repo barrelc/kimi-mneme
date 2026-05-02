@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -14,8 +12,27 @@ import click
 
 
 def get_project_root() -> Path:
-    """Get the project root directory (where mneme package lives)."""
-    return Path(__file__).parent.parent.resolve()
+    """Get the project root directory (where mneme package lives).
+
+    When installed via uvx/pip, plugin files are in the package directory.
+    When running from source, they're in the repo root.
+    """
+    # Package directory (where mneme/ is installed)
+    package_dir = Path(__file__).parent.parent.resolve()
+
+    # Check if plugin directory exists alongside the package (source install)
+    source_plugin = package_dir / "plugin"
+    if source_plugin.exists():
+        return package_dir
+
+    # When installed via uvx/pip, plugin files are inside the package
+    # Look for plugin in the installed package
+    installed_plugin = Path(__file__).parent / "plugin"
+    if installed_plugin.exists():
+        return Path(__file__).parent
+
+    # Fallback: return package dir and let caller handle missing plugin
+    return package_dir
 
 
 def get_kimi_dir() -> Path:
@@ -41,6 +58,7 @@ def main() -> None:
 def server(port: int, host: str) -> None:
     """Start the web server."""
     import uvicorn
+
     from mneme.server.app import create_app
 
     app = create_app()
@@ -105,6 +123,7 @@ def stats() -> None:
 # ---------------------------------------------------------------------------
 # Bootstrap command — one-shot setup
 # ---------------------------------------------------------------------------
+
 
 def _init_database() -> bool:
     """Initialize the SQLite database."""
@@ -418,7 +437,7 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     click.echo("  mneme server    — Start web server")
     click.echo("  mneme cleanup   — Clean old observations")
     click.echo()
-    click.echo(f"Files:")
+    click.echo("Files:")
     click.echo(f"  Config:  {get_mneme_dir() / 'config.json'}")
     click.echo(f"  DB:      {get_mneme_dir() / 'mneme.db'}")
     click.echo(f"  Logs:    {get_mneme_dir() / 'mneme.log'}")

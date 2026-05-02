@@ -11,7 +11,7 @@
 ### Via `uvx` (one command)
 
 ```bash
-uvx --from git+https://github.com/yourusername/kimi-mneme.git kimi-mneme bootstrap
+uvx --from git+https://github.com/barrelc/kimi-mneme.git mneme bootstrap
 ```
 
 This single command:
@@ -31,7 +31,7 @@ mneme bootstrap
 ### From source
 
 ```bash
-git clone https://github.com/yourusername/kimi-mneme.git
+git clone https://github.com/barrelc/kimi-mneme.git
 cd kimi-mneme
 pip install -e .
 mneme bootstrap

@@ -102,7 +102,7 @@ def _find_project_config() -> dict[str, Any] | None:
         config_file = path / ".mneme.json"
         if config_file.exists():
             try:
-                with open(config_file, "r", encoding="utf-8") as f:
+                with open(config_file, encoding="utf-8") as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning(f"Failed to load project config from {config_file}: {e}")
@@ -118,7 +118,7 @@ def load_config() -> dict[str, Any]:
 
     if config_path.exists():
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 user_config = json.load(f)
             _deep_update(config, user_config)
         except (json.JSONDecodeError, OSError) as e:

@@ -49,11 +49,13 @@ class Extractor:
 
         if parts:
             combined = "\n\n".join(parts)
-            return json.dumps({
-                "hookSpecificOutput": {
-                    "context": combined,
+            return json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "context": combined,
+                    }
                 }
-            })
+            )
 
         return None
 
@@ -65,7 +67,9 @@ class Extractor:
                 return None
 
             lines = ["## 📌 Session Resume Context"]
-            lines.append(f"**Checkpoint #{checkpoint['checkpoint_number']}** ({checkpoint['checkpoint_type']})")
+            lines.append(
+                f"**Checkpoint #{checkpoint['checkpoint_number']}** ({checkpoint['checkpoint_type']})"
+            )
             lines.append("")
             lines.append("### Summary")
             lines.append(checkpoint["summary"])
@@ -107,17 +111,15 @@ class Extractor:
 
         def _compress() -> None:
             try:
-                from mneme.core.compressor import Compressor
                 from mneme.config import load_config
+                from mneme.core.compressor import Compressor
 
                 config = load_config()
                 if not config["compression"]["enabled"]:
                     return
 
                 # Get observations for this session
-                observations = self.store.get_observations_for_session(
-                    session_id, limit=100
-                )
+                observations = self.store.get_observations_for_session(session_id, limit=100)
 
                 if len(observations) < config["compression"]["min_observations"]:
                     logger.debug(
@@ -177,15 +179,11 @@ class Extractor:
         self.store.add_observation(observation)
         logger.debug(f"User prompt stored for session {session_id}")
 
-    def _store_tool_observation(
-        self, data: dict[str, Any], success: bool
-    ) -> None:
+    def _store_tool_observation(self, data: dict[str, Any], success: bool) -> None:
         """Store a tool observation."""
         session_id = data["session_id"]
         tool_name = data.get("tool_name", "")
         tool_input = data.get("tool_input", {})
-        tool_call_id = data.get("tool_call_id", "")
-
         # Extract file path
         file_path = extract_file_path(tool_input)
 
@@ -200,9 +198,6 @@ class Extractor:
             # Detect and record truncation
             original_size = len(tool_output) if tool_output else 0
             if original_size > 100000:
-                head = tool_output[:500] if tool_output else ""
-                tail = tool_output[-500:] if tool_output else ""
-                line_count = tool_output.count("\n") if tool_output else 0
                 cleaned_output = tool_output[:100000] + "\n...[truncated by Kimi CLI]"
             else:
                 cleaned_output = tool_output
@@ -242,9 +237,13 @@ class Extractor:
                 tail_preview=tool_output[-500:] if tool_output else None,
                 line_count=tool_output.count("\n") if tool_output else None,
             )
-            logger.info(f"Truncated output recorded for {tool_name}: {original_size} → 100000 chars")
+            logger.info(
+                f"Truncated output recorded for {tool_name}: {original_size} → 100000 chars"
+            )
 
-        logger.debug(f"Tool observation stored: {tool_name} ({'success' if success else 'failure'})")
+        logger.debug(
+            f"Tool observation stored: {tool_name} ({'success' if success else 'failure'})"
+        )
 
     def handle_compaction_event(self, data: dict[str, Any]) -> None:
         """Handle context compaction event from Kimi CLI.
@@ -276,7 +275,9 @@ class Extractor:
                 lower = prompt.lower()
                 if any(w in lower for w in ["decide", "decision", "choose", "agreed", "concluded"]):
                     key_decisions.append(prompt[:200])
-                if any(w in lower for w in ["todo", "fix", "implement", "add", "need to", "should"]):
+                if any(
+                    w in lower for w in ["todo", "fix", "implement", "add", "need to", "should"]
+                ):
                     open_tasks.append(prompt[:200])
 
         # Deduplicate
@@ -284,7 +285,7 @@ class Extractor:
         open_tasks = list(dict.fromkeys(open_tasks))[:5]
 
         # Create a simple summary from recent observations
-        summary_parts = [f"Session checkpoint after context compaction."]
+        summary_parts = ["Session checkpoint after context compaction."]
         if tokens_before and tokens_after:
             summary_parts.append(f"Tokens reduced from {tokens_before} to {tokens_after}.")
         summary_parts.append(f"Recent activity: {len(observations)} observations.")
@@ -330,10 +331,13 @@ class Extractor:
                     title=f"Recurring error in {tool}",
                     description=f"Tool '{tool}' failed {len(errors)} times. Latest: {errors[-1][:200]}",
                     session_id=session_id,
-                    related_files=list(set(
-                        obs.get("file_path", "") for obs in observations
-                        if obs.get("file_path") and obs.get("error")
-                    )),
+                    related_files=list(
+                        {
+                            obs.get("file_path", "")
+                            for obs in observations
+                            if obs.get("file_path") and obs.get("error")
+                        }
+                    ),
                 )
 
         # Detect fix patterns (error followed by success on same file)

@@ -266,9 +266,7 @@ MIGRATIONS: list[tuple[int, str]] = [
 def _get_current_version(conn: sqlite3.Connection) -> int:
     """Get current schema version from database."""
     try:
-        row = conn.execute(
-            "SELECT MAX(version) FROM schema_versions"
-        ).fetchone()
+        row = conn.execute("SELECT MAX(version) FROM schema_versions").fetchone()
         return row[0] or 0
     except sqlite3.OperationalError:
         # Table doesn't exist yet
@@ -280,15 +278,13 @@ def _run_migration(conn: sqlite3.Connection, version: int, sql: str) -> None:
     logger.info(f"Running migration {version}...")
     conn.executescript(sql)
     # Ensure schema_versions table exists before inserting
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_versions (
             id INTEGER PRIMARY KEY,
             version INTEGER UNIQUE NOT NULL,
             applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-        """
-    )
+        """)
     conn.execute(
         "INSERT OR REPLACE INTO schema_versions (id, version, applied_at) "
         "VALUES ((SELECT id FROM schema_versions WHERE version = ?), ?, CURRENT_TIMESTAMP)",

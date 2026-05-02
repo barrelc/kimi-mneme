@@ -306,9 +306,7 @@ class ObservationStore:
     # Sessions listing
     # -----------------------------------------------------------------------
 
-    def get_sessions(
-        self, limit: int = 20, offset: int = 0
-    ) -> list[dict[str, Any]]:
+    def get_sessions(self, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
         """List sessions."""
         with self._get_conn() as conn:
             rows = conn.execute(
@@ -389,9 +387,7 @@ class ObservationStore:
     # User prompts
     # -----------------------------------------------------------------------
 
-    def add_user_prompt(
-        self, session_id: str, prompt_number: int, prompt_text: str
-    ) -> int:
+    def add_user_prompt(self, session_id: str, prompt_number: int, prompt_text: str) -> int:
         """Add a user prompt record."""
         with self._get_conn() as conn:
             cursor = conn.execute(
@@ -406,9 +402,7 @@ class ObservationStore:
         logger.debug(f"User prompt added: {prompt_id}")
         return prompt_id or 0
 
-    def get_user_prompts(
-        self, session_id: str, limit: int = 50
-    ) -> list[dict[str, Any]]:
+    def get_user_prompts(self, session_id: str, limit: int = 50) -> list[dict[str, Any]]:
         """Get user prompts for a session."""
         with self._get_conn() as conn:
             rows = conn.execute(
@@ -522,9 +516,7 @@ class ObservationStore:
     def get_queue_stats(self) -> dict[str, Any]:
         """Get queue statistics."""
         with self._get_conn() as conn:
-            total = conn.execute(
-                "SELECT COUNT(*) FROM pending_messages"
-            ).fetchone()[0]
+            total = conn.execute("SELECT COUNT(*) FROM pending_messages").fetchone()[0]
             pending = conn.execute(
                 "SELECT COUNT(*) FROM pending_messages WHERE status = 'pending'"
             ).fetchone()[0]
@@ -577,9 +569,7 @@ class ObservationStore:
         logger.debug(f"Feedback added: {feedback_id}")
         return feedback_id or 0
 
-    def get_feedback_for_observation(
-        self, observation_id: int
-    ) -> list[dict[str, Any]]:
+    def get_feedback_for_observation(self, observation_id: int) -> list[dict[str, Any]]:
         """Get feedback for an observation."""
         with self._get_conn() as conn:
             rows = conn.execute(
@@ -600,34 +590,20 @@ class ObservationStore:
     def get_stats(self) -> dict[str, Any]:
         """Get database statistics."""
         with self._get_conn() as conn:
-            sessions = conn.execute(
-                "SELECT COUNT(*) FROM sessions"
-            ).fetchone()[0]
-            observations = conn.execute(
-                "SELECT COUNT(*) FROM observations"
-            ).fetchone()[0]
-            summaries = conn.execute(
-                "SELECT COUNT(*) FROM summaries"
-            ).fetchone()[0]
-            user_prompts = conn.execute(
-                "SELECT COUNT(*) FROM user_prompts"
-            ).fetchone()[0]
-            pending = conn.execute(
-                "SELECT COUNT(*) FROM pending_messages"
-            ).fetchone()[0]
-            feedback = conn.execute(
-                "SELECT COUNT(*) FROM observation_feedback"
-            ).fetchone()[0]
+            sessions = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+            observations = conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
+            summaries = conn.execute("SELECT COUNT(*) FROM summaries").fetchone()[0]
+            user_prompts = conn.execute("SELECT COUNT(*) FROM user_prompts").fetchone()[0]
+            pending = conn.execute("SELECT COUNT(*) FROM pending_messages").fetchone()[0]
+            feedback = conn.execute("SELECT COUNT(*) FROM observation_feedback").fetchone()[0]
 
-            top_projects = conn.execute(
-                """
+            top_projects = conn.execute("""
                 SELECT COALESCE(project, cwd) as project, COUNT(*) as count
                 FROM sessions
                 GROUP BY COALESCE(project, cwd)
                 ORDER BY count DESC
                 LIMIT 5
-                """
-            ).fetchall()
+                """).fetchall()
 
         db_size = Path(self.db_path).stat().st_size
 
@@ -722,9 +698,7 @@ class ObservationStore:
         logger.info(f"Checkpoint {next_number} added for session {session_id}")
         return checkpoint_id or 0
 
-    def get_latest_checkpoint(
-        self, session_id: str
-    ) -> dict[str, Any] | None:
+    def get_latest_checkpoint(self, session_id: str) -> dict[str, Any] | None:
         """Get the latest checkpoint for a session."""
         with self._get_conn() as conn:
             row = conn.execute(
@@ -745,9 +719,7 @@ class ObservationStore:
         result["open_tasks"] = json.loads(result.get("open_tasks") or "[]")
         return result
 
-    def get_checkpoints(
-        self, session_id: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
+    def get_checkpoints(self, session_id: str, limit: int = 10) -> list[dict[str, Any]]:
         """Get all checkpoints for a session."""
         with self._get_conn() as conn:
             rows = conn.execute(
@@ -815,9 +787,7 @@ class ObservationStore:
         logger.info(f"Compaction recorded for session {session_id}")
         return event_id or 0
 
-    def get_compaction_history(
-        self, session_id: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
+    def get_compaction_history(self, session_id: str, limit: int = 10) -> list[dict[str, Any]]:
         """Get compaction history for a session."""
         with self._get_conn() as conn:
             rows = conn.execute(
@@ -927,9 +897,7 @@ class ObservationStore:
             results.append(r)
         return results
 
-    def get_patterns_for_project(
-        self, cwd: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
+    def get_patterns_for_project(self, cwd: str, limit: int = 10) -> list[dict[str, Any]]:
         """Get patterns relevant to current project."""
         import os
 
@@ -992,9 +960,7 @@ class ObservationStore:
         logger.debug(f"Truncated output recorded for observation {observation_id}")
         return record_id or 0
 
-    def get_truncated_output(
-        self, observation_id: int
-    ) -> dict[str, Any] | None:
+    def get_truncated_output(self, observation_id: int) -> dict[str, Any] | None:
         """Get truncation record for an observation."""
         with self._get_conn() as conn:
             row = conn.execute(

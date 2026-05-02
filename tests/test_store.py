@@ -23,6 +23,7 @@ def temp_db():
     # On Windows, SQLite connections may keep the file locked.
     # Force garbage collection and retry deletion.
     import gc
+
     gc.collect()
     Path(db_path).unlink(missing_ok=True)
 

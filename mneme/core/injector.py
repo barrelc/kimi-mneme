@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from loguru import logger
@@ -60,9 +60,7 @@ class Injector:
 
             if not project_sessions:
                 # Fall back to any recent sessions within recency window
-                project_sessions = self.store.get_sessions(
-                    limit=self.max_results
-                )
+                project_sessions = self.store.get_sessions(limit=self.max_results)
 
             if project_sessions:
                 # Rank sessions by relevance
@@ -80,9 +78,7 @@ class Injector:
                 # Get observations from top sessions
                 for session in ranked_sessions[: self.max_results]:
                     session_id = session["id"]
-                    observations = self.store.get_observations_for_session(
-                        session_id, limit=10
-                    )
+                    observations = self.store.get_observations_for_session(session_id, limit=10)
 
                     if not observations:
                         continue
@@ -140,16 +136,20 @@ class Injector:
             desc = p.get("description", "")
             count = p.get("occurrence_count", 1)
 
-            emoji = {"error": "❌", "fix": "✅", "decision": "📝", "preference": "⚙️", "architecture": "🏗️"}.get(ptype, "•")
+            emoji = {
+                "error": "❌",
+                "fix": "✅",
+                "decision": "📝",
+                "preference": "⚙️",
+                "architecture": "🏗️",
+            }.get(ptype, "•")
             lines.append(f"{emoji} **{title}** ({count}×)")
             if desc:
                 lines.append(f"   {desc[:150]}")
 
         return "\n".join(lines)
 
-    def _vector_search_sessions(
-        self, cwd: str
-    ) -> list[dict[str, Any]]:
+    def _vector_search_sessions(self, cwd: str) -> list[dict[str, Any]]:
         """Find semantically similar sessions via vector search.
 
         Searches for sessions related to the current project context.
@@ -157,6 +157,7 @@ class Injector:
         try:
             # Use project name and recent activity as query
             import os
+
             project_name = os.path.basename(cwd.rstrip("/\\"))
             query = f"project {project_name} coding session"
 
@@ -165,10 +166,7 @@ class Injector:
                 return []
 
             # Get unique session IDs from vector results
-            session_ids = list({
-                vr["session_id"] for vr in vector_results
-                if vr.get("session_id")
-            })
+            session_ids = list({vr["session_id"] for vr in vector_results if vr.get("session_id")})
 
             if not session_ids:
                 return []
@@ -189,9 +187,7 @@ class Injector:
             logger.debug(f"Vector session search failed: {e}")
             return []
 
-    def _rank_sessions(
-        self, sessions: list[dict[str, Any]], cwd: str
-    ) -> list[dict[str, Any]]:
+    def _rank_sessions(self, sessions: list[dict[str, Any]], cwd: str) -> list[dict[str, Any]]:
         """Rank sessions by relevance to current project.
 
         Scoring:
@@ -201,7 +197,6 @@ class Injector:
         - Recent sessions get small boost
         - Sessions with more observations get small boost
         """
-        import os
 
         project_name = os.path.basename(cwd.rstrip("/\\"))
         parent_dir = os.path.dirname(cwd)
@@ -233,9 +228,7 @@ class Injector:
                 try:
                     # Parse SQLite timestamp
                     if isinstance(started_at, str):
-                        session_time = datetime.fromisoformat(
-                            started_at.replace("Z", "+00:00")
-                        )
+                        session_time = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
                     else:
                         session_time = started_at
                     days_old = (now - session_time).total_seconds() / 86400
@@ -256,9 +249,7 @@ class Injector:
         # If filtering leaves nothing, return top results anyway
         return filtered if filtered else scored[: self.max_results]
 
-    def _format_session(
-        self, session: dict[str, Any], observations: list[dict[str, Any]]
-    ) -> str:
+    def _format_session(self, session: dict[str, Any], observations: list[dict[str, Any]]) -> str:
         """Format a session and its observations."""
         lines = []
         session_id_short = session["id"][:8]
@@ -281,9 +272,7 @@ class Injector:
             if file_path:
                 detail += f" `{file_path}`"
 
-            content = (
-                obs.get("tool_output") or obs.get("error") or obs.get("prompt") or ""
-            )
+            content = obs.get("tool_output") or obs.get("error") or obs.get("prompt") or ""
             if content:
                 content = content[:200] + "..." if len(content) > 200 else content
                 detail += f": {content}"
@@ -297,9 +286,7 @@ class Injector:
         if self.format == "json":
             import json
 
-            return json.dumps(
-                {"previous_context": context_parts}, ensure_ascii=False, indent=2
-            )
+            return json.dumps({"previous_context": context_parts}, ensure_ascii=False, indent=2)
 
         if self.format == "plain":
             return "Previous Context\n\n" + "\n\n".join(context_parts) + "\n---\n"

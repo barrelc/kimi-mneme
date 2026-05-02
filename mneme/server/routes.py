@@ -85,21 +85,27 @@ async def get_projects() -> dict[str, Any]:
             # Extract project name from path
             name = cwd.replace("\\", "/").rstrip("/").split("/")[-1]
             if name:
-                projects[name] = {"name": name, "path": cwd, "sessions": projects.get(name, {}).get("sessions", 0) + 1}
+                projects[name] = {
+                    "name": name,
+                    "path": cwd,
+                    "sessions": projects.get(name, {}).get("sessions", 0) + 1,
+                }
     return {"projects": list(projects.values())}
 
 
 @router.get("/stats")
-async def get_stats(project: str | None = Query(None, description="Filter by project name")) -> dict[str, Any]:
+async def get_stats(
+    project: str | None = Query(None, description="Filter by project name")
+) -> dict[str, Any]:
     """Get database statistics."""
     store = ObservationStore()
     stats = store.get_stats()
-    
+
     # Add vector store stats
     vector_store = VectorStore()
     vector_stats = vector_store.get_stats()
     stats["vector_store"] = vector_stats
-    
+
     # Filter by project if specified
     if project:
         sessions = store.get_sessions(limit=1000)
@@ -111,7 +117,7 @@ async def get_stats(project: str | None = Query(None, description="Filter by pro
             total_obs += s.get("observation_count", 0)
         stats["total_observations"] = total_obs
         stats["current_project"] = project
-    
+
     return stats
 
 

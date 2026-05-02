@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import httpx
 from loguru import logger
 
 from mneme.config import load_config
-
 
 COMPRESSION_PROMPT = """You are a coding session summarizer. Your task is to create a concise,
 semantic summary of the following coding session observations.
@@ -108,7 +106,10 @@ class Compressor:
                 json={
                     "model": self.model,
                     "messages": [
-                        {"role": "system", "content": "You are a helpful coding session summarizer."},
+                        {
+                            "role": "system",
+                            "content": "You are a helpful coding session summarizer.",
+                        },
                         {"role": "user", "content": prompt},
                     ],
                     "temperature": 0.3,
@@ -134,7 +135,9 @@ class Compressor:
         import re
 
         # File paths
-        files = re.findall(r"[\w\-./]+\.(py|js|ts|jsx|tsx|go|rs|java|cpp|c|h|yaml|yml|json|toml|md)", text)
+        files = re.findall(
+            r"[\w\-./]+\.(py|js|ts|jsx|tsx|go|rs|java|cpp|c|h|yaml|yml|json|toml|md)", text
+        )
 
         # CamelCase / snake_case identifiers
         identifiers = re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", text)

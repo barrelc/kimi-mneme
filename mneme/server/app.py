@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from contextlib import asynccontextmanager
 from typing import Any
@@ -16,6 +15,7 @@ from loguru import logger
 from mneme.config import load_config
 from mneme.db.store import ObservationStore
 from mneme.server.routes import router
+
 
 # Global connection manager for WebSocket broadcasting
 class ConnectionManager:
@@ -127,9 +127,7 @@ def create_app() -> FastAPI:
                     elif action == "stats":
                         store = ObservationStore()
                         stats = store.get_stats()
-                        await websocket.send_text(
-                            json.dumps({"type": "stats", "data": stats})
-                        )
+                        await websocket.send_text(json.dumps({"type": "stats", "data": stats}))
                     else:
                         await websocket.send_text(
                             json.dumps({"type": "error", "message": "Unknown action"})

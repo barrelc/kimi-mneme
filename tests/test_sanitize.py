@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from mneme.core.sanitize import (
     clean_observation,
     extract_file_path,

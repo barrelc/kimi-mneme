@@ -3,11 +3,6 @@
 > **Mneme** (Greek: Μνήμη) — the goddess of memory and the mother of the Muses.  
 > This project brings persistent, AI-compressed memory to [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/).
 
-> **Inspiration**: This project was inspired by the concept of persistent AI memory
-> (for Kimi Code CLI),
-> but is an **independent, from-scratch implementation** written in Python specifically
-> for the Kimi CLI ecosystem. No code was copied from external sources.
-
 ---
 
 ## What is kimi-mneme?
@@ -201,12 +196,6 @@ This project is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-
-**Inspiration**: This project was inspired by the concept of persistent AI memory
-for command-line interfaces
-by kimi-mneme contributors (), but is an **independent, from-scratch implementation**
-written in Python specifically for the Kimi Code CLI ecosystem. No code was copied
-or derived from external sources.
 
 ---
 

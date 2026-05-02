@@ -18,13 +18,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ================================================================================
 
-This project was inspired by the concept of persistent AI memory for
-command-line interfaces, by kimi-mneme contributors
-(), but is an independent implementation written from scratch
-in Python specifically for the Kimi Code CLI ecosystem.
+Copyright (C) 2026 kimi-mneme contributors.
 
-No code was copied from external sources. All source code in this
-repository is original work by the kimi-mneme contributors.
+This project is an independent implementation of persistent AI memory for
+command-line interfaces, written from scratch in Python specifically for
+the Kimi Code CLI ecosystem.
+
+All source code in this repository is original work by the kimi-mneme contributors.
 
 ================================================================================
 
