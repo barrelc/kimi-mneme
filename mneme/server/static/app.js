@@ -477,17 +477,17 @@ function showModal(title, content) {
   
   overlay.innerHTML = `
     <div style="
-      background: var(--surface); border: 1px solid var(--border);
+      background: #0f172a; border: 1px solid #1e293b;
       border-radius: 12px; max-width: 800px; width: 90%; max-height: 80vh;
-      display: flex; flex-direction: column;
+      display: flex; flex-direction: column; color: #e2e8f0;
     ">
-      <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin: 0;">${title}</h3>
+      <div style="padding: 1rem 1.5rem; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; color: #e2e8f0;">${title}</h3>
         <button onclick="document.getElementById('modal-overlay').remove()" style="
-          background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;
+          background: none; border: none; color: #64748b; font-size: 1.5rem; cursor: pointer;
         ">×</button>
       </div>
-      <div style="overflow-y: auto; flex: 1;">${content}</div>
+      <div style="overflow-y: auto; flex: 1; padding: 1rem;">${content}</div>
     </div>
   `;
   
