@@ -80,7 +80,7 @@ def _start_server() -> None:
         if sys.platform == "win32":
             # CREATE_NO_WINDOW = 0x08000000 — no console popup
             subprocess.Popen(
-                [python_exe, "-m", "mneme.server"],
+                [python_exe, "-c", "from mneme.server.app import main; main()"],
                 creationflags=0x08000000,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
