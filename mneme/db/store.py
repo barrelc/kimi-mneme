@@ -328,7 +328,7 @@ class ObservationStore:
                 FROM sessions s
                 LEFT JOIN observations o ON s.id = o.session_id
                 GROUP BY s.id
-                ORDER BY s.started_at DESC
+                ORDER BY last_activity DESC NULLS LAST, s.started_at DESC
                 LIMIT ? OFFSET ?
                 """,
                 (limit, offset),
