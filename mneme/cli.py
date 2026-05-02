@@ -176,7 +176,7 @@ def _create_default_config() -> bool:
 
 def _register_hooks() -> bool:
     """Register hooks in Kimi CLI config."""
-    click.echo("🔗 Registering hooks...")
+    click.echo("Registering hooks...")
 
     kimi_config = get_kimi_dir() / "config.toml"
     project_root = get_project_root()
@@ -215,7 +215,7 @@ def _register_hooks() -> bool:
 
             # Check if already installed
             if "kimi-mneme hooks" in content:
-                click.echo("ℹ️  Hooks already registered, updating...")
+                click.echo("Hooks already registered, updating...")
                 start = content.find("# === kimi-mneme hooks ===")
                 end = content.find("# === end kimi-mneme hooks ===") + len(
                     "# === end kimi-mneme hooks ==="
@@ -226,14 +226,17 @@ def _register_hooks() -> bool:
         else:
             content = hook_block
 
-        with open(kimi_config, "w", encoding="utf-8") as f:
+        # Write with BOM on Windows for TOML compatibility
+        encoding = "utf-8-sig" if sys.platform == "win32" else "utf-8"
+        with open(kimi_config, "w", encoding=encoding) as f:
             f.write(content)
 
-        click.echo(f"✅ Hooks registered in {kimi_config}")
+        click.echo(f"Hooks registered in {kimi_config}")
         return True
 
     except Exception as e:
-        click.echo(f"❌ Failed to register hooks: {e}")
+        click.echo(f"Failed to register hooks: {e}")
+        return False
         return False
 
 
