@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hook: UserPromptSubmit — log user prompts."""
+"""Hook: UserPromptSubmit — log user prompts with wire.jsonl fallback."""
 
 from __future__ import annotations
 
@@ -12,48 +12,58 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from mneme.core.extractor import Extractor
 
 
+def _extract_prompt_from_wire(session_id: str, cwd: str) -> str:
+    """Extract latest user prompt from wire.jsonl when hook prompt is empty."""
+    try:
+        sessions_dir = Path.home() / ".kimi" / "sessions"
+        if not sessions_dir.exists():
+            return ""
+        
+        # Find the session directory
+        for hash_dir in sessions_dir.iterdir():
+            if not hash_dir.is_dir():
+                continue
+            session_dir = hash_dir / session_id
+            if session_dir.exists():
+                wire_file = session_dir / "wire.jsonl"
+                if wire_file.exists():
+                    # Read last TurnBegin event
+                    lines = wire_file.read_text(encoding="utf-8").strip().split("\n")
+                    for line in reversed(lines):
+                        try:
+                            event = json.loads(line)
+                            if event.get("message", {}).get("type") == "TurnBegin":
+                                user_input = event["message"]["payload"]["user_input"]
+                                if isinstance(user_input, list):
+                                    texts = []
+                                    for part in user_input:
+                                        if part.get("type") == "text":
+                                            texts.append(part.get("text", ""))
+                                    return " ".join(texts)
+                                elif isinstance(user_input, str):
+                                    return user_input
+                        except (json.JSONDecodeError, KeyError):
+                            continue
+        return ""
+    except Exception:
+        return ""
+
+
 def main() -> None:
     """Handle UserPromptSubmit hook event."""
     try:
         input_data = json.load(sys.stdin)
         
-        # DEBUG: log what we received
-        debug_path = Path.home() / ".kimi" / "mneme" / "hook_debug.log"
-        with open(debug_path, "a", encoding="utf-8") as f:
-            f.write("=== UserPromptSubmit ===\n")
-            f.write(json.dumps(input_data, ensure_ascii=False, indent=2))
-            f.write("\n\n")
-        
-        # Try to extract prompt from various fields
+        session_id = input_data.get("session_id", "")
+        cwd = input_data.get("cwd", "")
         prompt = input_data.get("prompt", "")
         
-        # If prompt is empty, try user_input or content parts
-        if not prompt:
-            user_input = input_data.get("user_input", [])
-            if isinstance(user_input, list):
-                # Extract text from ContentPart list
-                texts = []
-                for part in user_input:
-                    if isinstance(part, dict):
-                        if part.get("type") == "text":
-                            texts.append(part.get("text", ""))
-                        elif "text" in part:
-                            texts.append(part["text"])
-                prompt = " ".join(texts)
-            elif isinstance(user_input, str):
-                prompt = user_input
+        # If prompt is empty, try to extract from wire.jsonl
+        if not prompt and session_id:
+            prompt = _extract_prompt_from_wire(session_id, cwd)
+            if prompt:
+                input_data["prompt"] = prompt
         
-        # Update input_data with extracted prompt
-        if prompt:
-            input_data["prompt"] = prompt
-            
-            # Log that we extracted it
-            with open(debug_path, "a", encoding="utf-8") as f:
-                f.write(f"EXTRACTED PROMPT: {prompt[:100]}...\n\n")
-        else:
-            with open(debug_path, "a", encoding="utf-8") as f:
-                f.write("WARNING: Could not extract prompt\n\n")
-
         extractor = Extractor()
         extractor.handle_user_prompt_submit(input_data)
 
