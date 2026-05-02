@@ -66,6 +66,30 @@ def server(port: int, host: str) -> None:
 
 
 @main.command()
+def update() -> None:
+    """Update hooks and config to latest version."""
+    click.echo(" Updating kimi-mneme...")
+    
+    # Re-run bootstrap steps
+    steps = [
+        ("Database", _init_database),
+        ("Configuration", _create_default_config),
+        ("Hooks", _register_hooks),
+        ("Plugin", _install_plugin),
+    ]
+    
+    all_ok = True
+    for name, step in steps:
+        click.echo(f"\n Step: {name}")
+        click.echo("-" * 30)
+        if not step():
+            all_ok = False
+    
+    click.echo("\n Update complete!")
+    click.echo("Please restart Kimi CLI for changes to take effect.")
+
+
+@main.command()
 def init() -> None:
     """Initialize the database."""
     from mneme.config import load_config
