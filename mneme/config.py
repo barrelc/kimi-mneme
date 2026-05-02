@@ -40,6 +40,7 @@ DEFAULT_CONFIG = {
     },
     "server": {
         "enabled": True,
+        "auto_start": True,
         "host": "127.0.0.1",
         "port": 37777,
         "cors_origins": ["http://localhost:37777"],

@@ -383,6 +383,27 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
 
 def _start_server() -> bool:
     """Start the web server."""
+    from mneme.config import load_config
+    
+    config = load_config()
+    server_cfg = config.get("server", {})
+    
+    if not server_cfg.get("auto_start", True):
+        click.echo(" Auto-start disabled in config")
+        return True
+    
+    host = server_cfg.get("host", "127.0.0.1")
+    port = server_cfg.get("port", 37777)
+    
+    # Check if already running
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=1):
+            click.echo(f" Server already running at http://{host}:{port}")
+            return True
+    except OSError:
+        pass  # Not running, start it
+    
     click.echo(" Starting web server...")
 
     try:
@@ -391,6 +412,8 @@ def _start_server() -> bool:
             subprocess.Popen(
                 [sys.executable, "-m", "mneme.server"],
                 creationflags=subprocess.CREATE_NO_WINDOW,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
         else:
             subprocess.Popen(
@@ -400,7 +423,7 @@ def _start_server() -> bool:
                 start_new_session=True,
             )
 
-        click.echo(" Web server started at http://localhost:37777")
+        click.echo(f" Web server started at http://{host}:{port}")
         return True
 
     except Exception as e:
