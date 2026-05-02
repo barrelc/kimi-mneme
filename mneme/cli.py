@@ -213,7 +213,7 @@ def _register_hooks() -> bool:
             backup_path = get_kimi_dir() / "config.toml.backup"
             shutil.copy2(kimi_config, backup_path)
 
-            # Check if already installed
+            # Remove existing kimi-mneme hook block
             if "kimi-mneme hooks" in content:
                 click.echo("Hooks already registered, updating...")
                 start = content.find("# === kimi-mneme hooks ===")
@@ -222,7 +222,12 @@ def _register_hooks() -> bool:
                 )
                 content = content[:start] + content[end:]
 
-            content = content + "\n" + hook_block
+            # Remove bare `hooks = []` which conflicts with [[hooks]] tables
+            import re
+
+            content = re.sub(r"\n?hooks\s*=\s*\[\]\s*\n?", "\n", content)
+
+            content = content.rstrip() + "\n" + hook_block
         else:
             content = hook_block
 
@@ -236,7 +241,6 @@ def _register_hooks() -> bool:
 
     except Exception as e:
         click.echo(f"Failed to register hooks: {e}")
-        return False
         return False
 
 
