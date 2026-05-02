@@ -1,22 +1,31 @@
 {
   "name": "kimi-mneme",
-  "version": "1.0.0",
-  "description": "Persistent memory plugin for Kimi Code CLI — search and retrieve past session context",
+  "version": "1.1.0",
+  "description": "Persistent memory plugin for Kimi Code CLI \u2014 search and retrieve past session context",
   "tools": [
     {
       "name": "mneme_search",
       "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure.",
-      "command": ["python3", "tools/search.py"],
+      "command": [
+        "C:\\Python313\\python.exe",
+        "C:\\Users\\barre\\Desktop\\kimi-mneme\\plugin\\tools\\search.py"
+      ],
       "parameters": {
         "type": "object",
         "properties": {
           "query": {
             "type": "string",
-            "description": "Search query — natural language or keywords"
+            "description": "Search query \u2014 natural language or keywords"
           },
           "type": {
             "type": "string",
-            "enum": ["bugfix", "feature", "refactor", "docs", "test"],
+            "enum": [
+              "bugfix",
+              "feature",
+              "refactor",
+              "docs",
+              "test"
+            ],
             "description": "Filter by observation type"
           },
           "limit": {
@@ -37,13 +46,18 @@
             "description": "Filter by project/directory name"
           }
         },
-        "required": ["query"]
+        "required": [
+          "query"
+        ]
       }
     },
     {
       "name": "mneme_timeline",
       "description": "Get chronological context around a specific observation. Shows what happened before and after. Use after mneme_search to understand context.",
-      "command": ["python3", "tools/timeline.py"],
+      "command": [
+        "C:\\Python313\\python.exe",
+        "C:\\Users\\barre\\Desktop\\kimi-mneme\\plugin\\tools\\timeline.py"
+      ],
       "parameters": {
         "type": "object",
         "properties": {
@@ -57,13 +71,18 @@
             "description": "Number of observations before/after (default: 5, max: 20)"
           }
         },
-        "required": ["observation_id"]
+        "required": [
+          "observation_id"
+        ]
       }
     },
     {
       "name": "mneme_get",
       "description": "Fetch full observation details by IDs. Always batch multiple IDs in one call. Use as the final step after identifying relevant observations.",
-      "command": ["python3", "tools/get.py"],
+      "command": [
+        "C:\\Python313\\python.exe",
+        "C:\\Users\\barre\\Desktop\\kimi-mneme\\plugin\\tools\\get.py"
+      ],
       "parameters": {
         "type": "object",
         "properties": {
@@ -75,7 +94,9 @@
             "description": "Array of observation IDs to fetch"
           }
         },
-        "required": ["ids"]
+        "required": [
+          "ids"
+        ]
       }
     }
   ]
