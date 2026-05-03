@@ -407,11 +407,16 @@ function renderTimelineView(data) {
 
   // Timeline stream
   const stream = document.getElementById('timeline-stream');
-  stream.innerHTML = `
-    ${promptCardsHtml}
-    ${summaryHtml}
-    ${errors.length > 0 ? renderErrorsSection(errors) : ''}
-  `;
+  try {
+    stream.innerHTML = `
+      ${promptCardsHtml}
+      ${summaryHtml}
+      ${errors.length > 0 ? renderErrorsSection(errors) : ''}
+    `;
+  } catch (e) {
+    console.error('Timeline render error:', e);
+    stream.innerHTML = `<div class="timeline-empty">Ошибка рендеринга: ${escapeHtml(String(e))}</div>`;
+  }
 }
 
 function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations, aiSummary }) {
@@ -685,11 +690,45 @@ function renderErrorsSection(errors) {
   `;
 }
 
-// Clean prompt text: remove file paths, truncate
+// Clean prompt text: remove file paths, system output, truncate
 function cleanPromptText(text) {
   if (!text) return '';
-  // Remove Windows file paths like C:\Users\... or C:/Users/...
-  let cleaned = text.replace(/[A-Za-z]:[\\/][^\s]+/g, '');
+
+  // Skip system/output prompts entirely
+  const systemPatterns = [
+    /^PS\s+claude/i,
+    /^SessionStart:/i,
+    /^▐▛███▜▌/,
+    /^▝▜█████▛▘/,
+    /^⎿\s*SessionStart:/i,
+    /^Legend:/i,
+    /^Column Key/i,
+    /^Context Index:/i,
+    /^Context Economics/i,
+    /^Loading:/i,
+    /^Work investment:/i,
+    /^Your savings:/i,
+    /^May\s+\d+,/i,
+    /^#S\d+/,
+    /^Investigated:/i,
+    /^Learned:/i,
+    /^Completed:/i,
+    /^Next Steps:/i,
+    /^Access\s+\d+k?\s+tokens/i,
+    /^View Observations Live/i,
+  ];
+  for (const pattern of systemPatterns) {
+    if (pattern.test(text)) return '[системное сообщение]';
+  }
+
+  let cleaned = text;
+  // Remove Windows file paths (C:\... or \Users\...)
+  cleaned = cleaned.replace(/[A-Za-z]:[\\/][^\n]+/g, '');
+  cleaned = cleaned.replace(/\\[A-Za-z][^\n]*/g, '');
+  // Remove ANSI escape codes
+  cleaned = cleaned.replace(/\x1b\[[0-9;]*m/g, '');
+  // Remove box-drawing characters
+  cleaned = cleaned.replace(/[▐▛███▜▌▝▜█████▛▘▘▘ ▝▝⎿─]/g, '');
   // Remove excessive whitespace
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   // Truncate to reasonable length
@@ -703,7 +742,7 @@ function cleanPromptText(text) {
 function generateSessionTitle(prompts, session) {
   // Find the most meaningful prompt (not just a file path or short phrase)
   const meaningful = prompts.filter(p => {
-    const text = p.prompt || '';
+    const text = p?.prompt || '';
     return text.length > 15 && !text.match(/^[A-Za-z]:[\\/]/);
   });
 
@@ -712,21 +751,24 @@ function generateSessionTitle(prompts, session) {
     : (prompts[prompts.length - 1]?.prompt || '');
 
   const clean = cleanPromptText(bestPrompt);
-  if (clean.length > 100) {
+  if (clean && clean.length > 100) {
     return clean.substring(0, 100) + '...';
   }
-  return clean || ('Сессия ' + session.id.substring(0, 8));
+  return clean || ('Сессия ' + (session?.id || 'unknown').substring(0, 8));
 }
 
 // Build human-readable "learned" summary
 function buildLearnedSummary(toolsUsed, fileChanges, observations) {
   const items = [];
 
+  // Filter out null/undefined tools
+  const validTools = toolsUsed.filter(t => t && typeof t === 'string');
+
   // Group tools by category
-  const browserTools = toolsUsed.filter(t => t.startsWith('browser_'));
-  const mcpTools = toolsUsed.filter(t => ['mneme_search', 'mneme_timeline', 'mneme_get'].includes(t));
-  const codeTools = toolsUsed.filter(t => ['WriteFile', 'StrReplaceFile', 'ReadFile', 'Shell'].includes(t));
-  const otherTools = toolsUsed.filter(t => !browserTools.includes(t) && !mcpTools.includes(t) && !codeTools.includes(t));
+  const browserTools = validTools.filter(t => t.startsWith('browser_'));
+  const mcpTools = validTools.filter(t => ['mneme_search', 'mneme_timeline', 'mneme_get'].includes(t));
+  const codeTools = validTools.filter(t => ['WriteFile', 'StrReplaceFile', 'ReadFile', 'Shell'].includes(t));
+  const otherTools = validTools.filter(t => !browserTools.includes(t) && !mcpTools.includes(t) && !codeTools.includes(t));
 
   if (browserTools.length > 0) {
     items.push(`Работа с браузером: ${browserTools.length} инструментов для веб-взаимодействия`);
