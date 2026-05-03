@@ -7,41 +7,31 @@ let currentProject = 'all';
 let currentFilter = 'all';
 let autoRefresh = true;
 let logEntries = [];
-let allProjects = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  initHeatmap();
-  loadProjects().then(() => {
-    initProjectTabs();
-    initFilters();
-    initSearch();
-    initAutoRefresh();
-    loadStats();
-    loadObservations();
-    startLogStream();
+  // Remove any stale modals from cached old versions
+  document.querySelectorAll('div').forEach(div => {
+    const h3 = div.querySelector('h3');
+    if (h3 && h3.textContent.includes('Session Timeline')) div.remove();
   });
+  initHeatmap();
+  initProjectTabs();
+  initFilters();
+  initSearch();
+  initAutoRefresh();
+  loadStats();
+  loadObservations();
+  startLogStream();
 });
-
-// Load projects from backend
-async function loadProjects() {
-  try {
-    const res = await fetch(`${API_BASE}/projects`);
-    const data = await res.json();
-    allProjects = data.projects || [];
-  } catch (err) {
-    addLog('error', `Failed to load projects: ${err.message}`);
-    allProjects = [];
-  }
-}
 
 // Heatmap — unique visual element
 function initHeatmap() {
   const container = document.getElementById('heatmap');
-  container.innerHTML = '';
   for (let i = 0; i < 35; i++) {
     const cell = document.createElement('div');
     cell.className = 'heatmap-cell';
+    // Random activity level for demo
     const level = Math.random() > 0.6 ? Math.floor(Math.random() * 4) + 1 : 0;
     if (level > 0) cell.classList.add(`level-${level}`);
     cell.title = `Day ${i + 1}: ${level} observations`;
@@ -49,38 +39,25 @@ function initHeatmap() {
   }
 }
 
-// Project tabs — now from real data
+// Project tabs
 function initProjectTabs() {
   const container = document.getElementById('project-tabs');
-  container.innerHTML = '';
 
-  // All tab
-  const allBtn = document.createElement('button');
-  allBtn.className = 'project-tab active';
-  allBtn.dataset.project = 'all';
-  allBtn.textContent = 'All';
-  allBtn.addEventListener('click', () => switchProject('all', allBtn));
-  container.appendChild(allBtn);
-
-  // Project tabs from real data
-  allProjects.forEach(p => {
+  // Add demo projects
+  const projects = ['psa-saas-work', 'kimi-mneme', 'backend-api'];
+  projects.forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'project-tab';
-    btn.dataset.project = p.name;
-    btn.textContent = p.name;
-    btn.title = `${p.sessions} sessions · ${p.path}`;
-    btn.addEventListener('click', () => switchProject(p.name, btn));
+    btn.dataset.project = p;
+    btn.textContent = p;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.project-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      currentProject = p;
+      loadObservations();
+    });
     container.appendChild(btn);
   });
-}
-
-function switchProject(project, btnElement) {
-  document.querySelectorAll('.project-tab').forEach(t => t.classList.remove('active'));
-  btnElement.classList.add('active');
-  currentProject = project;
-  addLog('info', `Switched to project: ${project}`);
-  loadStats();
-  loadObservations();
 }
 
 // Filters
@@ -125,10 +102,7 @@ function initAutoRefresh() {
 // Load statistics
 async function loadStats() {
   try {
-    const url = currentProject === 'all' 
-      ? `${API_BASE}/stats` 
-      : `${API_BASE}/stats?project=${encodeURIComponent(currentProject)}`;
-    const res = await fetch(url);
+    const res = await fetch(`${API_BASE}/stats`);
     const data = await res.json();
 
     animateValue('stat-sessions', data.total_sessions);
@@ -137,6 +111,7 @@ async function loadStats() {
 
     document.getElementById('db-size').textContent = `${data.db_size_mb} MB`;
 
+    // Token economics (demo calculations)
     const loaded = data.total_observations * 50;
     const invested = data.total_observations * 200;
     const savings = invested > 0 ? Math.round((1 - loaded / invested) * 100) : 0;
@@ -160,7 +135,7 @@ function animateValue(id, target) {
   function update(currentTime) {
     const elapsed = currentTime - startTime;
     const progress = Math.min(elapsed / duration, 1);
-    const ease = 1 - Math.pow(1 - progress, 3);
+    const ease = 1 - Math.pow(1 - progress, 3); // ease-out cubic
     const current = Math.round(start + (target - start) * ease);
     el.textContent = current;
 
@@ -172,10 +147,10 @@ function animateValue(id, target) {
   requestAnimationFrame(update);
 }
 
-// Load observations — now filtered by project
+// Load observations
 async function loadObservations() {
   try {
-    const res = await fetch(`${API_BASE}/sessions?limit=50`);
+    const res = await fetch(`${API_BASE}/sessions?limit=10`);
     const data = await res.json();
 
     const container = document.getElementById('observations-stream');
@@ -190,32 +165,7 @@ async function loadObservations() {
       return;
     }
 
-    // Filter by project
-    let sessions = data.sessions;
-    if (currentProject !== 'all') {
-      sessions = sessions.filter(s => {
-        const cwd = s.get ? s.get('cwd') : s.cwd;
-        return cwd && cwd.includes(currentProject);
-      });
-    }
-
-    // Filter by event type
-    if (currentFilter !== 'all') {
-      // For sessions we don't filter by event type, but we could fetch observations
-      // For now, just show filtered sessions
-    }
-
-    if (sessions.length === 0) {
-      container.innerHTML = `
-        <div style="text-align: center; padding: 4rem; color: var(--text-dim);">
-          <div style="font-size: 3rem; margin-bottom: 1rem;">📂</div>
-          <p>No sessions for project "${escapeHtml(currentProject)}"</p>
-        </div>
-      `;
-      return;
-    }
-
-    container.innerHTML = sessions.map(s => renderSessionCard(s)).join('');
+    container.innerHTML = data.sessions.map(s => renderSessionCard(s)).join('');
 
   } catch (err) {
     addLog('error', `Failed to load observations: ${err.message}`);
@@ -249,11 +199,8 @@ async function searchObservations(query) {
 
 // Render session card
 function renderSessionCard(session) {
-  const date = formatDate(session.started_at || session.get?.('started_at'));
+  const date = formatDate(session.started_at);
   const isActive = !session.ended_at;
-  const cwd = session.cwd || session.get?.('cwd') || 'Unknown';
-  const id = session.id || session.get?.('id') || 'unknown';
-  const obsCount = session.observation_count || session.get?.('observation_count') || 0;
 
   return `
     <div class="observation-card">
@@ -262,17 +209,17 @@ function renderSessionCard(session) {
           <span class="badge-pill badge-success">Session</span>
           ${isActive ? '<span class="badge-pill" style="background: rgba(52, 211, 153, 0.2); color: #34d399;">● Active</span>' : ''}
         </div>
-        <span class="card-meta">${id.substring(0, 8)} · ${date}</span>
+        <span class="card-meta">${session.id.substring(0, 8)} · ${date}</span>
       </div>
       <div class="card-body">
-        <p><code>${escapeHtml(cwd)}</code></p>
+        <p><code>${escapeHtml(session.cwd)}</code></p>
         <p style="color: var(--text-secondary); margin-top: 0.5rem;">
-          ${obsCount} observations
+          ${session.observation_count || 0} observations
         </p>
       </div>
       <div class="card-footer">
-        <span class="card-action" onclick="viewTimeline('${id}')">📊 Timeline</span>
-        <span class="card-action" onclick="viewDetails('${id}')">🔍 Details</span>
+        <span class="card-action" onclick="viewTimeline('${session.id}')">📊 Timeline</span>
+        <span class="card-action" onclick="viewDetails('${session.id}')">🔍 Details</span>
       </div>
     </div>
   `;
@@ -319,6 +266,7 @@ function startLogStream() {
   addLog('hook', 'SessionStart hook registered');
   addLog('info', 'Plugin tools loaded: mneme_search, mneme_timeline, mneme_get');
 
+  // Simulate periodic logs
   setInterval(() => {
     if (!autoRefresh) return;
 
@@ -350,6 +298,7 @@ function addLog(level, message) {
 
   stream.insertBefore(entry, stream.firstChild);
 
+  // Keep only last 100 entries
   while (stream.children.length > 100) {
     stream.removeChild(stream.lastChild);
   }
@@ -365,11 +314,13 @@ function formatDate(dateStr) {
   const now = new Date();
   const diff = now - date;
 
+  // Less than 1 hour
   if (diff < 3600000) {
     const mins = Math.floor(diff / 60000);
     return mins < 1 ? 'Just now' : `${mins}m ago`;
   }
 
+  // Less than 24 hours
   if (diff < 86400000) {
     const hours = Math.floor(diff / 3600000);
     return `${hours}h ago`;
@@ -385,125 +336,218 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// View session timeline
+// Timeline view
 async function viewTimeline(sessionId) {
   addLog('info', `Loading timeline for ${sessionId}`);
-  
   try {
-    // Get latest observation for this session
-    const res = await fetch(`${API_BASE}/sessions?limit=50`);
+    const res = await fetch(`${API_BASE}/session/${sessionId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const session = data.sessions.find(s => s.id === sessionId);
-    
-    if (!session || !session.observation_count) {
-      showModal('Timeline', '<p>No observations in this session.</p>');
-      return;
-    }
-    
-    // For now, show session summary
-    const content = `
-      <div style="padding: 1rem;">
-        <h3>Session ${sessionId.substring(0, 8)}</h3>
-        <p><strong>Project:</strong> ${session.cwd || 'Unknown'}</p>
-        <p><strong>Started:</strong> ${session.started_at || 'Unknown'}</p>
-        <p><strong>Observations:</strong> ${session.observation_count || 0}</p>
-        <p><strong>Prompts:</strong> ${session.prompt_count || 0}</p>
-        <p><strong>Tools:</strong> ${session.tool_count || 0}</p>
-        ${session.first_prompt ? `<p><strong>First message:</strong> ${escapeHtml(session.first_prompt.substring(0, 200))}</p>` : ''}
-        ${session.last_prompt ? `<p><strong>Last message:</strong> ${escapeHtml(session.last_prompt.substring(0, 200))}</p>` : ''}
-      </div>
-    `;
-    showModal('Session Timeline', content);
+    renderTimelineView(data);
   } catch (err) {
     addLog('error', `Failed to load timeline: ${err.message}`);
   }
 }
 
-// View session details
-async function viewDetails(sessionId) {
-  addLog('info', `Loading details for ${sessionId}`);
-  
-  try {
-    // Search for observations in this session
-    const res = await fetch(`${API_BASE}/search?q=session_id:${sessionId.substring(0, 8)}&limit=20`);
-    const data = await res.json();
-    
-    let content = '<div style="padding: 1rem;">';
-    content += `<h3>Session ${sessionId.substring(0, 8)}</h3>`;
-    
-    if (!data.results || data.results.length === 0) {
-      content += '<p>No observations found.</p>';
-    } else {
-      content += `<p>Found ${data.results.length} observations:</p>`;
-      content += '<div style="max-height: 400px; overflow-y: auto;">';
-      data.results.forEach(obs => {
-        content += `
-          <div style="border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; margin: 0.5rem 0;">
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">
-              #${obs.id} · ${obs.timestamp} · ${obs.type}
-            </div>
-            ${obs.tool_name ? `<div style="font-weight: 500;">Tool: ${obs.tool_name}</div>` : ''}
-            ${obs.snippet ? `<div style="margin-top: 0.5rem; font-size: 0.9rem;">${escapeHtml(obs.snippet.substring(0, 300))}</div>` : ''}
-          </div>
-        `;
-      });
-      content += '</div>';
+function renderTimelineView(data) {
+  const session = data.session;
+  const observations = data.observations || [];
+  const checkpoint = data.checkpoint;
+  const pending = data.pending_messages || [];
+
+  // Hide session list, show timeline
+  document.getElementById('observations-stream').style.display = 'none';
+  document.getElementById('timeline-view').style.display = 'block';
+
+  // Header
+  document.getElementById('timeline-title').textContent = session.project || session.cwd || 'Сессия';
+  const started = formatDate(session.started_at);
+  const ended = session.ended_at ? formatDate(session.ended_at) : 'активна';
+  document.getElementById('timeline-meta').innerHTML = `
+    <span>ID: ${session.id.substring(0, 8)}</span>
+    <span>•</span>
+    <span>${started} — ${ended}</span>
+    <span>•</span>
+    <span>${observations.length} событий</span>
+  `;
+
+  // Extract structured data from observations
+  const prompts = observations.filter(o => o.event_type === 'UserPromptSubmit' && o.prompt);
+  const errors = observations.filter(o => o.error);
+  const fileChanges = [...new Set(observations.filter(o => o.file_path).map(o => o.file_path))];
+  const toolsUsed = [...new Set(observations.filter(o => o.tool_name).map(o => o.tool_name))];
+
+  // Build session summary card (like competitors)
+  const summaryHtml = buildSessionSummary({
+    session,
+    prompts,
+    errors,
+    fileChanges,
+    toolsUsed,
+    checkpoint,
+    pending,
+    observations
+  });
+
+  // Build prompt cards (like competitors - short cards at top)
+  const promptCardsHtml = prompts.slice(-5).reverse().map((p, i) => `
+    <div class="prompt-card">
+      <div class="prompt-card-badges">
+        <span class="badge-pill badge-prompt">PROMPT</span>
+        <span class="badge-pill badge-tool">KIMI</span>
+        <span class="prompt-card-project">${escapeHtml(session.project || '')}</span>
+      </div>
+      <div class="prompt-card-text">${escapeHtml(p.prompt)}</div>
+      <div class="prompt-card-meta">#${p.id || i} • ${formatDateTime(p.created_at)}</div>
+    </div>
+  `).join('');
+
+  // Timeline stream
+  const stream = document.getElementById('timeline-stream');
+  stream.innerHTML = `
+    ${promptCardsHtml}
+    ${summaryHtml}
+    ${errors.length > 0 ? renderErrorsSection(errors) : ''}
+  `;
+}
+
+function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations }) {
+  // Generate a title from the last prompt or session info
+  const lastPrompt = prompts[prompts.length - 1]?.prompt || '';
+  const title = lastPrompt.length > 80 ? lastPrompt.substring(0, 80) + '...' : lastPrompt;
+
+  // Extract "completed" items from observations (heuristic)
+  const completedItems = extractCompletedItems(observations);
+
+  // Extract "next steps" from pending or last prompt
+  const nextSteps = checkpoint?.open_tasks || [];
+
+  // Extract "learned" from tool outputs (heuristic - tool names and file paths)
+  const learnedItems = [];
+  if (toolsUsed.length > 0) learnedItems.push(`Использованы инструменты: ${toolsUsed.join(', ')}`);
+  if (fileChanges.length > 0) learnedItems.push(`Работа с файлами: ${fileChanges.slice(0, 5).join(', ')}${fileChanges.length > 5 ? '...' : ''}`);
+
+  // Extract "investigated" from search queries
+  const searches = observations.filter(o => o.tool_name === 'mneme_search' && o.tool_input);
+  const investigatedItems = searches.map(s => {
+    try {
+      const input = JSON.parse(s.tool_input);
+      return input.query || s.tool_input;
+    } catch {
+      return s.tool_input;
     }
-    
-    content += '</div>';
-    showModal('Session Details', content);
-  } catch (err) {
-    addLog('error', `Failed to load details: ${err.message}`);
+  }).slice(0, 3);
+
+  return `
+    <div class="session-summary-card">
+      <div class="session-summary-badges">
+        <span class="badge-pill badge-success">SESSION SUMMARY</span>
+        <span class="badge-pill badge-tool">KIMI</span>
+        <span class="session-summary-project">${escapeHtml(session.project || '')}</span>
+      </div>
+      <h3 class="session-summary-title">${escapeHtml(title || 'Сессия ' + session.id.substring(0, 8))}</h3>
+      <div class="session-summary-divider"></div>
+
+      ${investigatedItems.length > 0 ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">🔎</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">ИССЛЕДОВАНО</div>
+            ${investigatedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${learnedItems.length > 0 ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">💡</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">УЗНАНО</div>
+            ${learnedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${completedItems.length > 0 ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">✅</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">ВЫПОЛНЕНО</div>
+            ${completedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${nextSteps.length > 0 ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">➡️</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">СЛЕДУЮЩИЕ ШАГИ</div>
+            ${nextSteps.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function extractCompletedItems(observations) {
+  const items = [];
+  // Look for successful file writes
+  const writes = observations.filter(o => o.tool_name === 'WriteFile' && !o.error);
+  if (writes.length > 0) {
+    const files = [...new Set(writes.map(o => o.file_path).filter(Boolean))];
+    items.push(`Изменены файлы: ${files.slice(0, 5).join(', ')}${files.length > 5 ? ` и ещё ${files.length - 5}` : ''}`);
   }
+  // Look for successful shell commands
+  const shells = observations.filter(o => o.tool_name === 'Shell' && !o.error);
+  if (shells.length > 0) items.push(`Выполнено ${shells.length} shell-команд`);
+  // Look for git commits
+  const git = observations.filter(o => o.tool_name === 'Shell' && o.tool_input && o.tool_input.includes('git commit'));
+  if (git.length > 0) items.push(`Сделано ${git.length} git-коммитов`);
+  return items;
+}
+
+function renderErrorsSection(errors) {
+  return `
+    <div class="session-summary-card session-summary-errors">
+      <div class="session-summary-badges">
+        <span class="badge-pill badge-error">ERRORS</span>
+      </div>
+      <h3 class="session-summary-title">Ошибки (${errors.length})</h3>
+      <div class="session-summary-divider"></div>
+      ${errors.slice(0, 5).map(e => `
+        <div class="summary-section">
+          <div class="summary-section-icon">❌</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">${escapeHtml(e.tool_name || 'Error')}</div>
+            <div class="summary-section-text error-text">${escapeHtml(e.error.substring(0, 300))}${e.error.length > 300 ? '...' : ''}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function formatDateTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function showSessionList() {
+  document.getElementById('timeline-view').style.display = 'none';
+  document.getElementById('observations-stream').style.display = 'block';
+  loadObservations();
+}
+
+function viewDetails(sessionId) {
+  // Details shows the same timeline view
+  viewTimeline(sessionId);
 }
 
 function viewObservation(id) {
   addLog('info', `Viewing observation #${id}`);
-}
-
-// Helper: show modal
-function showModal(title, content) {
-  // Remove existing modal
-  const existing = document.getElementById('modal-overlay');
-  if (existing) existing.remove();
-  
-  const overlay = document.createElement('div');
-  overlay.id = 'modal-overlay';
-  overlay.style.cssText = `
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.7); z-index: 1000;
-    display: flex; align-items: center; justify-content: center;
-  `;
-  
-  overlay.innerHTML = `
-    <div style="
-      background: #0f172a; border: 1px solid #1e293b;
-      border-radius: 12px; max-width: 800px; width: 90%; max-height: 80vh;
-      display: flex; flex-direction: column; color: #e2e8f0;
-    ">
-      <div style="padding: 1rem 1.5rem; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin: 0; color: #e2e8f0;">${title}</h3>
-        <button onclick="document.getElementById('modal-overlay').remove()" style="
-          background: none; border: none; color: #64748b; font-size: 1.5rem; cursor: pointer;
-        ">×</button>
-      </div>
-      <div style="overflow-y: auto; flex: 1; padding: 1rem;">${content}</div>
-    </div>
-  `;
-  
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-  
-  document.body.appendChild(overlay);
-}
-
-// Helper: escape HTML
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 function copyId(id) {
@@ -511,7 +555,13 @@ function copyId(id) {
   addLog('info', `Copied ID ${id} to clipboard`);
 }
 
-// Auto-refresh
+function formatTime(dateStr) {
+  if (!dateStr) return '--:--';
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// Auto-refresh observations
 setInterval(() => {
   if (autoRefresh) {
     loadStats();

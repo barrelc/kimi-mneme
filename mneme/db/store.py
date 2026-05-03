@@ -380,19 +380,21 @@ class ObservationStore:
         return [dict(row) for row in rows]
 
     def get_observations_for_session(
-        self, session_id: str, limit: int = 10
+        self, session_id: str, limit: int | None = None
     ) -> list[dict[str, Any]]:
         """Get observations for a specific session."""
+        sql = """
+            SELECT * FROM observations
+            WHERE session_id = ?
+            ORDER BY created_at ASC
+        """
+        params: list[Any] = [session_id]
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+
         with self._get_conn() as conn:
-            rows = conn.execute(
-                """
-                SELECT * FROM observations
-                WHERE session_id = ?
-                ORDER BY created_at DESC
-                LIMIT ?
-                """,
-                (session_id, limit),
-            ).fetchall()
+            rows = conn.execute(sql, params).fetchall()
 
         return [dict(row) for row in rows]
 

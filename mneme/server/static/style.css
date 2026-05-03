@@ -605,6 +605,206 @@ body::before {
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
+/* ============================================================
+   TIMELINE VIEW STYLES — Competitor-style session summary
+   ============================================================ */
+
+.timeline-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.timeline-back {
+  background: var(--glass-highlight);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  margin-bottom: 0.75rem;
+}
+
+.timeline-back:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.timeline-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.timeline-meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Timeline stream — centered cards like competitors */
+.timeline-stream {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.timeline-empty {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+/* Prompt cards — small cards at top like competitors */
+.prompt-card {
+  background: linear-gradient(135deg, rgba(30, 25, 50, 0.9), rgba(25, 20, 40, 0.9));
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  transition: all 0.3s;
+}
+
+.prompt-card:hover {
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 4px 24px rgba(139, 92, 246, 0.1);
+}
+
+.prompt-card-badges {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.prompt-card-project {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.prompt-card-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+}
+
+.prompt-card-meta {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Session Summary Card — main competitor-style card */
+.session-summary-card {
+  background: linear-gradient(135deg, rgba(35, 30, 50, 0.95), rgba(28, 24, 42, 0.95));
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  transition: all 0.3s;
+}
+
+.session-summary-card:hover {
+  border-color: rgba(139, 92, 246, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.session-summary-errors {
+  border-color: rgba(248, 113, 113, 0.15);
+}
+
+.session-summary-errors:hover {
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.session-summary-badges {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.session-summary-project {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.session-summary-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e8d5b7;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.session-summary-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.3), transparent);
+  margin: 1rem 0;
+}
+
+/* Summary sections like competitors */
+.summary-section {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.summary-section:last-child {
+  margin-bottom: 0;
+}
+
+.summary-section-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.summary-section-content {
+  flex: 1;
+}
+
+.summary-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #c4a574;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+}
+
+.summary-section-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.summary-section-text.error-text {
+  color: var(--error);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+}
+
+/* Session marker between cards */
+.session-marker {
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-style: italic;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -634,6 +834,9 @@ body::before {
   .rightbar {
     display: none;
   }
+  .checkpoint-box {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
@@ -649,5 +852,16 @@ body::before {
   .project-tabs {
     overflow-x: auto;
     max-width: 200px;
+  }
+  .timeline-stream {
+    padding-left: 0.75rem;
+  }
+  .timeline-event {
+    padding-left: 1rem;
+  }
+  .timeline-event::before {
+    left: -0.75rem;
+    width: 10px;
+    height: 10px;
   }
 }
