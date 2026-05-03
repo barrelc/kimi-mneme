@@ -543,10 +543,89 @@ function buildHeuristicSessionSummary({ session, prompts, errors, fileChanges, t
     }
   }).slice(0, 3);
 
+  // Recent prompts for context (always show at least something)
+  const recentPrompts = prompts.slice(-3).map(p => cleanPromptText(p.prompt)).filter(p => p.length > 5);
+
   // Count stats for subtitle
   const toolCount = toolsUsed.length;
   const fileCount = fileChanges.length;
   const obsCount = observations.length;
+  const promptCount = prompts.length;
+
+  // Build sections HTML — always show at least one section
+  const sections = [];
+
+  if (investigatedItems.length > 0) {
+    sections.push(`
+      <div class="summary-section">
+        <div class="summary-section-icon">🔎</div>
+        <div class="summary-section-content">
+          <div class="summary-section-title">ИССЛЕДОВАНО</div>
+          ${investigatedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+        </div>
+      </div>
+    `);
+  }
+
+  if (learnedItems.length > 0) {
+    sections.push(`
+      <div class="summary-section">
+        <div class="summary-section-icon">💡</div>
+        <div class="summary-section-content">
+          <div class="summary-section-title">УЗНАНО</div>
+          ${learnedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+        </div>
+      </div>
+    `);
+  } else if (recentPrompts.length > 0) {
+    // Fallback: show recent prompts as context
+    sections.push(`
+      <div class="summary-section">
+        <div class="summary-section-icon">💬</div>
+        <div class="summary-section-content">
+          <div class="summary-section-title">ОБСУЖДЕНИЕ</div>
+          ${recentPrompts.map(item => `<div class="summary-section-text">• ${escapeHtml(item)}</div>`).join('')}
+        </div>
+      </div>
+    `);
+  }
+
+  if (completedItems.length > 0) {
+    sections.push(`
+      <div class="summary-section">
+        <div class="summary-section-icon">✅</div>
+        <div class="summary-section-content">
+          <div class="summary-section-title">ВЫПОЛНЕНО</div>
+          ${completedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+        </div>
+      </div>
+    `);
+  }
+
+  if (nextSteps.length > 0) {
+    sections.push(`
+      <div class="summary-section">
+        <div class="summary-section-icon">➡️</div>
+        <div class="summary-section-content">
+          <div class="summary-section-title">СЛЕДУЮЩИЕ ШАГИ</div>
+          ${nextSteps.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+        </div>
+      </div>
+    `);
+  }
+
+  // If absolutely nothing to show, add a generic message
+  if (sections.length === 0) {
+    sections.push(`
+      <div class="summary-section">
+        <div class="summary-section-icon">📋</div>
+        <div class="summary-section-content">
+          <div class="summary-section-title">СЕССИЯ</div>
+          <div class="summary-section-text">Активная сессия с ${promptCount} промптами и ${obsCount} событиями. AI-summary будет сгенерировано после завершения сессии.</div>
+        </div>
+      </div>
+    `);
+  }
 
   return `
     <div class="session-summary-card">
@@ -559,49 +638,11 @@ function buildHeuristicSessionSummary({ session, prompts, errors, fileChanges, t
       <div class="session-summary-subtitle">
         ${toolCount > 0 ? `<span>${toolCount} инструментов</span>` : ''}
         ${fileCount > 0 ? `<span>${fileCount} файлов</span>` : ''}
+        ${promptCount > 0 ? `<span>${promptCount} промптов</span>` : ''}
         <span>${obsCount} событий</span>
       </div>
       <div class="session-summary-divider"></div>
-
-      ${investigatedItems.length > 0 ? `
-        <div class="summary-section">
-          <div class="summary-section-icon">🔎</div>
-          <div class="summary-section-content">
-            <div class="summary-section-title">ИССЛЕДОВАНО</div>
-            ${investigatedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${learnedItems.length > 0 ? `
-        <div class="summary-section">
-          <div class="summary-section-icon">💡</div>
-          <div class="summary-section-content">
-            <div class="summary-section-title">УЗНАНО</div>
-            ${learnedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${completedItems.length > 0 ? `
-        <div class="summary-section">
-          <div class="summary-section-icon">✅</div>
-          <div class="summary-section-content">
-            <div class="summary-section-title">ВЫПОЛНЕНО</div>
-            ${completedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${nextSteps.length > 0 ? `
-        <div class="summary-section">
-          <div class="summary-section-icon">➡️</div>
-          <div class="summary-section-content">
-            <div class="summary-section-title">СЛЕДУЮЩИЕ ШАГИ</div>
-            ${nextSteps.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
-          </div>
-        </div>
-      ` : ''}
+      ${sections.join('')}
     </div>
   `;
 }
@@ -725,6 +766,55 @@ function formatDateTime(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// Get observation type badge based on content heuristics
+function getObservationBadge(obs) {
+  const text = (obs.tool_input || obs.tool_output || obs.prompt || '').toLowerCase();
+  const tool = (obs.tool_name || '').toLowerCase();
+  const event = (obs.event_type || '').toLowerCase();
+
+  // Error-related
+  if (obs.error || text.includes('error') || text.includes('exception') || text.includes('failed')) {
+    return { class: 'badge-bugfix', label: '🐛 bugfix' };
+  }
+
+  // Security
+  if (text.includes('security') || text.includes('auth') || text.includes('password') || text.includes('token')) {
+    return { class: 'badge-security', label: '🔒 security' };
+  }
+
+  // Feature / new functionality
+  if (text.includes('add ') || text.includes('create ') || text.includes('implement ') || text.includes('new ')) {
+    return { class: 'badge-feature', label: '✨ feature' };
+  }
+
+  // Refactor
+  if (text.includes('refactor') || text.includes('rewrite') || text.includes('restructure')) {
+    return { class: 'badge-refactor', label: '🏗️ refactor' };
+  }
+
+  // Discovery / research
+  if (tool.includes('search') || tool.includes('grep') || tool.includes('find') || text.includes('investigate')) {
+    return { class: 'badge-discovery', label: '🔍 discovery' };
+  }
+
+  // Decision
+  if (text.includes('decide') || text.includes('choose') || text.includes('approach') || text.includes('solution')) {
+    return { class: 'badge-decision', label: '⚖️ decision' };
+  }
+
+  // File changes
+  if (tool === 'writefile' || tool === 'strreplacefile') {
+    return { class: 'badge-change', label: '✅ change' };
+  }
+
+  // Default by event type
+  if (event === 'userpromptsubmit') {
+    return { class: 'badge-prompt', label: 'PROMPT' };
+  }
+
+  return { class: 'badge-tool', label: tool.toUpperCase() || 'OBS' };
 }
 
 function showSessionList() {
