@@ -107,6 +107,18 @@
           <p>No observations yet. Start a Kimi CLI session!</p>
         </div>
       </div>
+
+      <!-- Timeline View (hidden by default) -->
+      <div id="timeline-view" style="display: none;">
+        <div class="timeline-header">
+          <button class="timeline-back" onclick="showSessionList()">← Назад к сессиям</button>
+          <div class="timeline-title" id="timeline-title">Сессия</div>
+          <div class="timeline-meta" id="timeline-meta"></div>
+        </div>
+
+        <!-- Timeline Events -->
+        <div class="timeline-stream" id="timeline-stream"></div>
+      </div>
     </main>
 
     <!-- Right Sidebar — Log Stream -->
@@ -135,6 +147,6 @@
     </aside>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2"></script>
 </body>
 </html>

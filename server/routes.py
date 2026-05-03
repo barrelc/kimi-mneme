@@ -77,3 +77,53 @@ async def get_stats() -> dict[str, Any]:
     """Get database statistics."""
     store = ObservationStore()
     return store.get_stats()
+
+
+@router.get("/session/{session_id}")
+async def get_session(session_id: str) -> dict[str, Any]:
+    """Get full session data with timeline, prompts, checkpoint, and pending work."""
+    store = ObservationStore()
+
+    # Get session info
+    with store._get_conn() as conn:
+        session_row = conn.execute(
+            "SELECT * FROM sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+
+    if not session_row:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = dict(session_row)
+
+    # Get all observations for this session (chronological)
+    observations = store.get_observations_for_session(session_id, limit=None)
+
+    # Get user prompts
+    user_prompts = store.get_user_prompts(session_id, limit=100)
+
+    # Get latest checkpoint
+    checkpoint = store.get_latest_checkpoint(session_id)
+
+    # Get pending messages for this session
+    with store._get_conn() as conn:
+        pending_rows = conn.execute(
+            """
+            SELECT * FROM pending_messages
+            WHERE session_id = ?
+            ORDER BY created_at DESC
+            """,
+            (session_id,),
+        ).fetchall()
+    pending_messages = [dict(row) for row in pending_rows]
+
+    # Get compaction history
+    compactions = store.get_compaction_history(session_id, limit=5)
+
+    return {
+        "session": session,
+        "observations": observations,
+        "user_prompts": user_prompts,
+        "checkpoint": checkpoint,
+        "pending_messages": pending_messages,
+        "compactions": compactions,
+    }

@@ -389,18 +389,20 @@ function renderTimelineView(data) {
     observations
   });
 
-  // Build prompt cards (like competitors - short cards at top)
-  const promptCardsHtml = prompts.slice(-5).reverse().map((p, i) => `
+  // Build prompt cards — clean, truncated
+  const promptCardsHtml = prompts.slice(-5).reverse().map((p, i) => {
+    const cleanPrompt = cleanPromptText(p.prompt);
+    return `
     <div class="prompt-card">
       <div class="prompt-card-badges">
         <span class="badge-pill badge-prompt">PROMPT</span>
         <span class="badge-pill badge-tool">KIMI</span>
         <span class="prompt-card-project">${escapeHtml(session.project || '')}</span>
       </div>
-      <div class="prompt-card-text">${escapeHtml(p.prompt)}</div>
+      <div class="prompt-card-text">${escapeHtml(cleanPrompt)}</div>
       <div class="prompt-card-meta">#${p.id || i} • ${formatDateTime(p.created_at)}</div>
     </div>
-  `).join('');
+  `}).join('');
 
   // Timeline stream
   const stream = document.getElementById('timeline-stream');
@@ -412,9 +414,8 @@ function renderTimelineView(data) {
 }
 
 function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations }) {
-  // Generate a title from the last prompt or session info
-  const lastPrompt = prompts[prompts.length - 1]?.prompt || '';
-  const title = lastPrompt.length > 80 ? lastPrompt.substring(0, 80) + '...' : lastPrompt;
+  // Generate a smart title from the most meaningful prompt
+  const title = generateSessionTitle(prompts, session);
 
   // Extract "completed" items from observations (heuristic)
   const completedItems = extractCompletedItems(observations);
@@ -422,10 +423,8 @@ function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed,
   // Extract "next steps" from pending or last prompt
   const nextSteps = checkpoint?.open_tasks || [];
 
-  // Extract "learned" from tool outputs (heuristic - tool names and file paths)
-  const learnedItems = [];
-  if (toolsUsed.length > 0) learnedItems.push(`Использованы инструменты: ${toolsUsed.join(', ')}`);
-  if (fileChanges.length > 0) learnedItems.push(`Работа с файлами: ${fileChanges.slice(0, 5).join(', ')}${fileChanges.length > 5 ? '...' : ''}`);
+  // Build "learned" as readable sentences, not raw lists
+  const learnedItems = buildLearnedSummary(toolsUsed, fileChanges, observations);
 
   // Extract "investigated" from search queries
   const searches = observations.filter(o => o.tool_name === 'mneme_search' && o.tool_input);
@@ -438,6 +437,11 @@ function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed,
     }
   }).slice(0, 3);
 
+  // Count stats for subtitle
+  const toolCount = toolsUsed.length;
+  const fileCount = fileChanges.length;
+  const obsCount = observations.length;
+
   return `
     <div class="session-summary-card">
       <div class="session-summary-badges">
@@ -445,7 +449,12 @@ function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed,
         <span class="badge-pill badge-tool">KIMI</span>
         <span class="session-summary-project">${escapeHtml(session.project || '')}</span>
       </div>
-      <h3 class="session-summary-title">${escapeHtml(title || 'Сессия ' + session.id.substring(0, 8))}</h3>
+      <h3 class="session-summary-title">${escapeHtml(title)}</h3>
+      <div class="session-summary-subtitle">
+        ${toolCount > 0 ? `<span>${toolCount} инструментов</span>` : ''}
+        ${fileCount > 0 ? `<span>${fileCount} файлов</span>` : ''}
+        <span>${obsCount} событий</span>
+      </div>
       <div class="session-summary-divider"></div>
 
       ${investigatedItems.length > 0 ? `
@@ -527,6 +536,83 @@ function renderErrorsSection(errors) {
       `).join('')}
     </div>
   `;
+}
+
+// Clean prompt text: remove file paths, truncate
+function cleanPromptText(text) {
+  if (!text) return '';
+  // Remove Windows file paths like C:\Users\... or C:/Users/...
+  let cleaned = text.replace(/[A-Za-z]:[\\/][^\s]+/g, '');
+  // Remove excessive whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  // Truncate to reasonable length
+  if (cleaned.length > 200) {
+    cleaned = cleaned.substring(0, 200) + '...';
+  }
+  return cleaned || text.substring(0, 200);
+}
+
+// Generate a meaningful session title from prompts
+function generateSessionTitle(prompts, session) {
+  // Find the most meaningful prompt (not just a file path or short phrase)
+  const meaningful = prompts.filter(p => {
+    const text = p.prompt || '';
+    return text.length > 15 && !text.match(/^[A-Za-z]:[\\/]/);
+  });
+
+  const bestPrompt = meaningful.length > 0
+    ? meaningful[meaningful.length - 1].prompt
+    : (prompts[prompts.length - 1]?.prompt || '');
+
+  const clean = cleanPromptText(bestPrompt);
+  if (clean.length > 100) {
+    return clean.substring(0, 100) + '...';
+  }
+  return clean || ('Сессия ' + session.id.substring(0, 8));
+}
+
+// Build human-readable "learned" summary
+function buildLearnedSummary(toolsUsed, fileChanges, observations) {
+  const items = [];
+
+  // Group tools by category
+  const browserTools = toolsUsed.filter(t => t.startsWith('browser_'));
+  const mcpTools = toolsUsed.filter(t => ['mneme_search', 'mneme_timeline', 'mneme_get'].includes(t));
+  const codeTools = toolsUsed.filter(t => ['WriteFile', 'StrReplaceFile', 'ReadFile', 'Shell'].includes(t));
+  const otherTools = toolsUsed.filter(t => !browserTools.includes(t) && !mcpTools.includes(t) && !codeTools.includes(t));
+
+  if (browserTools.length > 0) {
+    items.push(`Работа с браузером: ${browserTools.length} инструментов для веб-взаимодействия`);
+  }
+  if (mcpTools.length > 0) {
+    items.push(`Поиск в памяти: использованы инструменты mneme для доступа к истории`);
+  }
+  if (codeTools.length > 0) {
+    const actionNames = [];
+    if (codeTools.includes('WriteFile')) actionNames.push('запись файлов');
+    if (codeTools.includes('StrReplaceFile')) actionNames.push('редактирование');
+    if (codeTools.includes('ReadFile')) actionNames.push('чтение');
+    if (codeTools.includes('Shell')) actionNames.push('shell-команды');
+    items.push(`Работа с кодом: ${actionNames.join(', ')}`);
+  }
+  if (otherTools.length > 0) {
+    items.push(`Дополнительно: ${otherTools.join(', ')}`);
+  }
+
+  // File changes summary
+  if (fileChanges.length > 0) {
+    const uniqueDirs = [...new Set(fileChanges.map(f => {
+      const parts = f.split(/[\\/]/);
+      return parts.slice(0, -1).join('/') || 'root';
+    }))];
+    if (fileChanges.length <= 3) {
+      items.push(`Изменённые файлы: ${fileChanges.map(f => f.split(/[\\/]/).pop()).join(', ')}`);
+    } else {
+      items.push(`Работа с ${fileChanges.length} файлами в ${uniqueDirs.length} директориях`);
+    }
+  }
+
+  return items;
 }
 
 function formatDateTime(dateStr) {

@@ -1,27 +1,20 @@
-import sys
-sys.path.insert(0, '.')
+import sqlite3
+from pathlib import Path
 
-from mneme.db.store import ObservationStore, Observation
+db_path = Path.home() / '.kimi/mneme/mneme.db'
+conn = sqlite3.connect(str(db_path))
 
-store = ObservationStore()
-store.add_session('test-sess-1', 'C:/project')
+# Check if our session exists
+rows = conn.execute("SELECT id FROM sessions WHERE id = '6fc71b7c-8616-4ab5-a5b0-b5f71b3f9b94'").fetchall()
+print('Session found:', len(rows) > 0)
 
-obs = Observation(
-    session_id='test-sess-1',
-    event_type='PostToolUse',
-    tool_name='WriteFile',
-    file_path='src/main.py',
-    tool_output='Created main entry point',
-    tool_input=None,
-    error=None,
-    prompt=None,
-    agent_name=None,
-)
-obs_id = store.add_observation(obs)
-print(f'Added observation #{obs_id}')
+# Count observations for this session
+obs = conn.execute("SELECT COUNT(*) FROM observations WHERE session_id = '6fc71b7c-8616-4ab5-a5b0-b5f71b3f9b94'").fetchone()
+print('Observations for 6fc71b7c:', obs[0])
 
-stats = store.get_stats()
-print(f"Sessions: {stats['total_sessions']}, Observations: {stats['total_observations']}")
+# Show all sessions
+print('\nAll sessions:')
+for r in conn.execute('SELECT id, started_at FROM sessions ORDER BY started_at DESC LIMIT 10').fetchall():
+    print(' ', r[0][:8], r[1])
 
-results = store.search('main')
-print(f"Search 'main': {len(results)} results")
+conn.close()

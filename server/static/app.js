@@ -10,6 +10,11 @@ let logEntries = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  // Remove any stale modals from cached old versions
+  document.querySelectorAll('div').forEach(div => {
+    const h3 = div.querySelector('h3');
+    if (h3 && h3.textContent.includes('Session Timeline')) div.remove();
+  });
   initHeatmap();
   initProjectTabs();
   initFilters();
@@ -331,13 +336,214 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Placeholder actions
-function viewTimeline(sessionId) {
-  addLog('info', `Viewing timeline for ${sessionId}`);
+// Timeline view
+async function viewTimeline(sessionId) {
+  addLog('info', `Loading timeline for ${sessionId}`);
+  try {
+    const res = await fetch(`${API_BASE}/session/${sessionId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderTimelineView(data);
+  } catch (err) {
+    addLog('error', `Failed to load timeline: ${err.message}`);
+  }
+}
+
+function renderTimelineView(data) {
+  const session = data.session;
+  const observations = data.observations || [];
+  const checkpoint = data.checkpoint;
+  const pending = data.pending_messages || [];
+
+  // Hide session list, show timeline
+  document.getElementById('observations-stream').style.display = 'none';
+  document.getElementById('timeline-view').style.display = 'block';
+
+  // Header
+  document.getElementById('timeline-title').textContent = session.project || session.cwd || 'Сессия';
+  const started = formatDate(session.started_at);
+  const ended = session.ended_at ? formatDate(session.ended_at) : 'активна';
+  document.getElementById('timeline-meta').innerHTML = `
+    <span>ID: ${session.id.substring(0, 8)}</span>
+    <span>•</span>
+    <span>${started} — ${ended}</span>
+    <span>•</span>
+    <span>${observations.length} событий</span>
+  `;
+
+  // Extract structured data from observations
+  const prompts = observations.filter(o => o.event_type === 'UserPromptSubmit' && o.prompt);
+  const errors = observations.filter(o => o.error);
+  const fileChanges = [...new Set(observations.filter(o => o.file_path).map(o => o.file_path))];
+  const toolsUsed = [...new Set(observations.filter(o => o.tool_name).map(o => o.tool_name))];
+
+  // Build session summary card (like competitors)
+  const summaryHtml = buildSessionSummary({
+    session,
+    prompts,
+    errors,
+    fileChanges,
+    toolsUsed,
+    checkpoint,
+    pending,
+    observations
+  });
+
+  // Build prompt cards (like competitors - short cards at top)
+  const promptCardsHtml = prompts.slice(-5).reverse().map((p, i) => `
+    <div class="prompt-card">
+      <div class="prompt-card-badges">
+        <span class="badge-pill badge-prompt">PROMPT</span>
+        <span class="badge-pill badge-tool">KIMI</span>
+        <span class="prompt-card-project">${escapeHtml(session.project || '')}</span>
+      </div>
+      <div class="prompt-card-text">${escapeHtml(p.prompt)}</div>
+      <div class="prompt-card-meta">#${p.id || i} • ${formatDateTime(p.created_at)}</div>
+    </div>
+  `).join('');
+
+  // Timeline stream
+  const stream = document.getElementById('timeline-stream');
+  stream.innerHTML = `
+    ${promptCardsHtml}
+    ${summaryHtml}
+    ${errors.length > 0 ? renderErrorsSection(errors) : ''}
+  `;
+}
+
+function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations }) {
+  // Generate a title from the last prompt or session info
+  const lastPrompt = prompts[prompts.length - 1]?.prompt || '';
+  const title = lastPrompt.length > 80 ? lastPrompt.substring(0, 80) + '...' : lastPrompt;
+
+  // Extract "completed" items from observations (heuristic)
+  const completedItems = extractCompletedItems(observations);
+
+  // Extract "next steps" from pending or last prompt
+  const nextSteps = checkpoint?.open_tasks || [];
+
+  // Extract "learned" from tool outputs (heuristic - tool names and file paths)
+  const learnedItems = [];
+  if (toolsUsed.length > 0) learnedItems.push(`Использованы инструменты: ${toolsUsed.join(', ')}`);
+  if (fileChanges.length > 0) learnedItems.push(`Работа с файлами: ${fileChanges.slice(0, 5).join(', ')}${fileChanges.length > 5 ? '...' : ''}`);
+
+  // Extract "investigated" from search queries
+  const searches = observations.filter(o => o.tool_name === 'mneme_search' && o.tool_input);
+  const investigatedItems = searches.map(s => {
+    try {
+      const input = JSON.parse(s.tool_input);
+      return input.query || s.tool_input;
+    } catch {
+      return s.tool_input;
+    }
+  }).slice(0, 3);
+
+  return `
+    <div class="session-summary-card">
+      <div class="session-summary-badges">
+        <span class="badge-pill badge-success">SESSION SUMMARY</span>
+        <span class="badge-pill badge-tool">KIMI</span>
+        <span class="session-summary-project">${escapeHtml(session.project || '')}</span>
+      </div>
+      <h3 class="session-summary-title">${escapeHtml(title || 'Сессия ' + session.id.substring(0, 8))}</h3>
+      <div class="session-summary-divider"></div>
+
+      ${investigatedItems.length > 0 ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">🔎</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">ИССЛЕДОВАНО</div>
+            ${investigatedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${learnedItems.length > 0 ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">💡</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">УЗНАНО</div>
+            ${learnedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${completedItems.length > 0 ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">✅</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">ВЫПОЛНЕНО</div>
+            ${completedItems.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${nextSteps.length > 0 ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">➡️</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">СЛЕДУЮЩИЕ ШАГИ</div>
+            ${nextSteps.map(item => `<div class="summary-section-text">${escapeHtml(item)}</div>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function extractCompletedItems(observations) {
+  const items = [];
+  // Look for successful file writes
+  const writes = observations.filter(o => o.tool_name === 'WriteFile' && !o.error);
+  if (writes.length > 0) {
+    const files = [...new Set(writes.map(o => o.file_path).filter(Boolean))];
+    items.push(`Изменены файлы: ${files.slice(0, 5).join(', ')}${files.length > 5 ? ` и ещё ${files.length - 5}` : ''}`);
+  }
+  // Look for successful shell commands
+  const shells = observations.filter(o => o.tool_name === 'Shell' && !o.error);
+  if (shells.length > 0) items.push(`Выполнено ${shells.length} shell-команд`);
+  // Look for git commits
+  const git = observations.filter(o => o.tool_name === 'Shell' && o.tool_input && o.tool_input.includes('git commit'));
+  if (git.length > 0) items.push(`Сделано ${git.length} git-коммитов`);
+  return items;
+}
+
+function renderErrorsSection(errors) {
+  return `
+    <div class="session-summary-card session-summary-errors">
+      <div class="session-summary-badges">
+        <span class="badge-pill badge-error">ERRORS</span>
+      </div>
+      <h3 class="session-summary-title">Ошибки (${errors.length})</h3>
+      <div class="session-summary-divider"></div>
+      ${errors.slice(0, 5).map(e => `
+        <div class="summary-section">
+          <div class="summary-section-icon">❌</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">${escapeHtml(e.tool_name || 'Error')}</div>
+            <div class="summary-section-text error-text">${escapeHtml(e.error.substring(0, 300))}${e.error.length > 300 ? '...' : ''}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function formatDateTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function showSessionList() {
+  document.getElementById('timeline-view').style.display = 'none';
+  document.getElementById('observations-stream').style.display = 'block';
+  loadObservations();
 }
 
 function viewDetails(sessionId) {
-  addLog('info', `Viewing details for ${sessionId}`);
+  // Details shows the same timeline view
+  viewTimeline(sessionId);
 }
 
 function viewObservation(id) {
@@ -347,6 +553,12 @@ function viewObservation(id) {
 function copyId(id) {
   navigator.clipboard.writeText(id.toString());
   addLog('info', `Copied ID ${id} to clipboard`);
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '--:--';
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // Auto-refresh observations

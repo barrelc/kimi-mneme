@@ -648,13 +648,14 @@ body::before {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Timeline stream — centered cards like competitors */
+/* Timeline stream — centered narrow cards */
 .timeline-stream {
-  max-width: 800px;
+  max-width: 720px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  padding: 0 1rem;
 }
 
 .timeline-empty {
@@ -664,18 +665,20 @@ body::before {
   font-size: 0.95rem;
 }
 
-/* Prompt cards — small cards at top like competitors */
+/* Prompt cards — small cards at top, ocean-blue theme */
 .prompt-card {
-  background: linear-gradient(135deg, rgba(30, 25, 50, 0.9), rgba(25, 20, 40, 0.9));
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: linear-gradient(135deg, rgba(16, 35, 65, 0.9), rgba(12, 28, 52, 0.9));
+  border: 1px solid rgba(52, 211, 153, 0.12);
   border-radius: var(--radius-lg);
   padding: 1.25rem;
   transition: all 0.3s;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .prompt-card:hover {
-  border-color: rgba(139, 92, 246, 0.4);
-  box-shadow: 0 4px 24px rgba(139, 92, 246, 0.1);
+  border-color: rgba(52, 211, 153, 0.3);
+  box-shadow: 0 4px 24px rgba(52, 211, 153, 0.08);
 }
 
 .prompt-card-badges {
@@ -683,6 +686,7 @@ body::before {
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .prompt-card-project {
@@ -696,6 +700,8 @@ body::before {
   line-height: 1.6;
   color: var(--text-primary);
   margin-bottom: 0.75rem;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .prompt-card-meta {
@@ -704,17 +710,19 @@ body::before {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Session Summary Card — main competitor-style card */
+/* Session Summary Card — ocean-blue theme */
 .session-summary-card {
-  background: linear-gradient(135deg, rgba(35, 30, 50, 0.95), rgba(28, 24, 42, 0.95));
-  border: 1px solid rgba(139, 92, 246, 0.15);
+  background: linear-gradient(135deg, rgba(18, 38, 70, 0.95), rgba(13, 30, 55, 0.95));
+  border: 1px solid rgba(52, 211, 153, 0.12);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
   transition: all 0.3s;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .session-summary-card:hover {
-  border-color: rgba(139, 92, 246, 0.3);
+  border-color: rgba(52, 211, 153, 0.25);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
@@ -731,6 +739,7 @@ body::before {
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 
 .session-summary-project {
@@ -742,18 +751,35 @@ body::before {
 .session-summary-title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #e8d5b7;
+  color: #7dd3fc;
   line-height: 1.5;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.session-summary-subtitle {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.session-summary-subtitle span {
+  background: rgba(52, 211, 153, 0.08);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(52, 211, 153, 0.1);
 }
 
 .session-summary-divider {
   height: 1px;
-  background: linear-gradient(90deg, rgba(139, 92, 246, 0.3), transparent);
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.25), transparent);
   margin: 1rem 0;
 }
 
-/* Summary sections like competitors */
+/* Summary sections */
 .summary-section {
   display: flex;
   gap: 0.75rem;
@@ -772,13 +798,14 @@ body::before {
 
 .summary-section-content {
   flex: 1;
+  min-width: 0;
 }
 
 .summary-section-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #c4a574;
-  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #34d399;
+  letter-spacing: 0.08em;
   margin-bottom: 0.4rem;
   text-transform: uppercase;
 }
@@ -787,6 +814,8 @@ body::before {
   font-size: 0.9rem;
   line-height: 1.6;
   color: var(--text-secondary);
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .summary-section-text.error-text {
