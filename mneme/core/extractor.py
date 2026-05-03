@@ -109,6 +109,9 @@ class Extractor:
         self.store.end_session(session_id, reason)
         logger.info(f"Session ended: {session_id} ({reason})")
 
+        # Trigger AI summary generation in background
+        self._trigger_session_summary(session_id)
+
         # Trigger compression in a background thread
         # Hooks are synchronous, so we fire-and-forget
         self._trigger_compression(session_id)
@@ -160,6 +163,49 @@ class Extractor:
         thread = threading.Thread(target=_compress, daemon=True)
         thread.start()
         logger.debug(f"Compression triggered for session {session_id}")
+
+    def _trigger_session_summary(self, session_id: str) -> None:
+        """Trigger AI session summary generation in background."""
+        import threading
+
+        def _generate() -> None:
+            try:
+                from mneme.core.session_summary import SessionSummaryGenerator
+
+                observations = self.store.get_observations_for_session(session_id, limit=None)
+
+                if len(observations) < 3:
+                    logger.debug(f"Too few observations ({len(observations)}) to summarize for {session_id}")
+                    return
+
+                generator = SessionSummaryGenerator()
+                result = generator.generate(observations)
+
+                if result:
+                    self.store.add_session_summary(
+                        session_id=session_id,
+                        title=result.get("title"),
+                        request=result.get("request"),
+                        investigated=result.get("investigated"),
+                        learned=result.get("learned"),
+                        completed=result.get("completed"),
+                        next_steps=result.get("next_steps"),
+                        files_read=json.dumps(result.get("files_read", [])),
+                        files_edited=json.dumps(result.get("files_edited", [])),
+                        notes=result.get("notes"),
+                        raw_summary=result.get("raw_summary"),
+                        model="moonshot",
+                    )
+                    logger.info(f"Session summary generated for {session_id}")
+                else:
+                    logger.debug(f"Session summary generation returned no result for {session_id}")
+
+            except Exception as e:
+                logger.error(f"Background session summary generation failed: {e}")
+
+        thread = threading.Thread(target=_generate, daemon=True)
+        thread.start()
+        logger.debug(f"Session summary generation triggered for {session_id}")
 
     def handle_post_tool_use(self, data: dict[str, Any]) -> None:
         """Handle PostToolUse event."""

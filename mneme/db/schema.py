@@ -260,6 +260,31 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX IF NOT EXISTS idx_truncated_observation ON truncated_outputs(observation_id);
         """,
     ),
+    (
+        12,
+        """
+        -- AI-generated session summaries (structured output)
+        CREATE TABLE IF NOT EXISTS session_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            title TEXT,
+            request TEXT,
+            investigated TEXT,
+            learned TEXT,
+            completed TEXT,
+            next_steps TEXT,
+            files_read TEXT,
+            files_edited TEXT,
+            notes TEXT,
+            raw_summary TEXT,
+            model TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_summaries_session ON session_summaries(session_id);
+        CREATE INDEX IF NOT EXISTS idx_session_summaries_created ON session_summaries(created_at);
+        """,
+    ),
 ]
 
 

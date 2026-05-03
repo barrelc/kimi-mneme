@@ -176,6 +176,9 @@ async def get_session(session_id: str) -> dict[str, Any]:
     # Get compaction history
     compactions = store.get_compaction_history(session_id, limit=5)
 
+    # Get AI-generated session summary
+    ai_summary = store.get_session_summary(session_id)
+
     return {
         "session": session,
         "observations": observations,
@@ -183,4 +186,5 @@ async def get_session(session_id: str) -> dict[str, Any]:
         "checkpoint": checkpoint,
         "pending_messages": pending_messages,
         "compactions": compactions,
+        "ai_summary": ai_summary,
     }

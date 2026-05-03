@@ -668,6 +668,63 @@ class ObservationStore:
         return summary_id or 0
 
     # -----------------------------------------------------------------------
+    # Session Summaries (AI-generated structured summaries)
+    # -----------------------------------------------------------------------
+
+    def add_session_summary(
+        self,
+        session_id: str,
+        title: str | None = None,
+        request: str | None = None,
+        investigated: str | None = None,
+        learned: str | None = None,
+        completed: str | None = None,
+        next_steps: str | None = None,
+        files_read: str | None = None,
+        files_edited: str | None = None,
+        notes: str | None = None,
+        raw_summary: str | None = None,
+        model: str | None = None,
+    ) -> int:
+        """Add an AI-generated structured session summary."""
+        with self._get_conn() as conn:
+            # Delete any existing summary for this session
+            conn.execute("DELETE FROM session_summaries WHERE session_id = ?", (session_id,))
+            cursor = conn.execute(
+                """
+                INSERT INTO session_summaries
+                (session_id, title, request, investigated, learned, completed,
+                 next_steps, files_read, files_edited, notes, raw_summary, model)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id, title, request, investigated, learned, completed,
+                    next_steps, files_read, files_edited, notes, raw_summary, model,
+                ),
+            )
+            summary_id = cursor.lastrowid
+
+        logger.debug(f"Session summary added: {summary_id} for session {session_id}")
+        return summary_id or 0
+
+    def get_session_summary(self, session_id: str) -> dict[str, Any] | None:
+        """Get the AI-generated structured summary for a session."""
+        with self._get_conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM session_summaries
+                WHERE session_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (session_id,),
+            ).fetchone()
+
+        if row:
+            return dict(row)
+        return None
+
+    # -----------------------------------------------------------------------
     # Session checkpoints
     # -----------------------------------------------------------------------
 

@@ -377,7 +377,7 @@ function renderTimelineView(data) {
   const fileChanges = [...new Set(observations.filter(o => o.file_path).map(o => o.file_path))];
   const toolsUsed = [...new Set(observations.filter(o => o.tool_name).map(o => o.tool_name))];
 
-  // Build session summary card (like competitors)
+  // Build session summary card (AI-generated or heuristic)
   const summaryHtml = buildSessionSummary({
     session,
     prompts,
@@ -386,7 +386,8 @@ function renderTimelineView(data) {
     toolsUsed,
     checkpoint,
     pending,
-    observations
+    observations,
+    aiSummary: data.ai_summary
   });
 
   // Build prompt cards — clean, truncated
@@ -413,7 +414,112 @@ function renderTimelineView(data) {
   `;
 }
 
-function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations }) {
+function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations, aiSummary }) {
+  // If AI summary exists, use it (structured style)
+  if (aiSummary) {
+    return buildAISessionSummary({ session, aiSummary, toolsUsed, fileChanges, observations });
+  }
+
+  // Fallback to heuristic summary for active sessions
+  return buildHeuristicSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations });
+}
+
+function buildAISessionSummary({ session, aiSummary, toolsUsed, fileChanges, observations }) {
+  // Parse files arrays
+  let filesRead = [];
+  let filesEdited = [];
+  try {
+    filesRead = JSON.parse(aiSummary.files_read || '[]');
+  } catch {}
+  try {
+    filesEdited = JSON.parse(aiSummary.files_edited || '[]');
+  } catch {}
+
+  const toolCount = toolsUsed.length;
+  const fileCount = fileChanges.length;
+  const obsCount = observations.length;
+
+  return `
+    <div class="session-summary-card">
+      <div class="session-summary-badges">
+        <span class="badge-pill badge-success">SESSION SUMMARY</span>
+        <span class="badge-pill badge-tool">KIMI</span>
+        <span class="session-summary-project">${escapeHtml(session.project || '')}</span>
+      </div>
+      <h3 class="session-summary-title">${escapeHtml(aiSummary.title || 'Сессия')}</h3>
+      <div class="session-summary-subtitle">
+        ${toolCount > 0 ? `<span>${toolCount} инструментов</span>` : ''}
+        ${fileCount > 0 ? `<span>${fileCount} файлов</span>` : ''}
+        <span>${obsCount} событий</span>
+        ${aiSummary.model ? `<span>AI: ${escapeHtml(aiSummary.model)}</span>` : ''}
+      </div>
+      <div class="session-summary-divider"></div>
+
+      ${aiSummary.investigated ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">🔎</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">ИССЛЕДОВАНО</div>
+            <div class="summary-section-text">${escapeHtml(aiSummary.investigated)}</div>
+          </div>
+        </div>
+      ` : ''}
+
+      ${aiSummary.learned ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">💡</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">УЗНАНО</div>
+            <div class="summary-section-text">${escapeHtml(aiSummary.learned)}</div>
+          </div>
+        </div>
+      ` : ''}
+
+      ${aiSummary.completed ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">✅</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">ВЫПОЛНЕНО</div>
+            <div class="summary-section-text">${escapeHtml(aiSummary.completed)}</div>
+          </div>
+        </div>
+      ` : ''}
+
+      ${aiSummary.next_steps ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">➡️</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">СЛЕДУЮЩИЕ ШАГИ</div>
+            <div class="summary-section-text">${escapeHtml(aiSummary.next_steps)}</div>
+          </div>
+        </div>
+      ` : ''}
+
+      ${(filesRead.length > 0 || filesEdited.length > 0) ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">📁</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">ФАЙЛЫ</div>
+            ${filesRead.length > 0 ? `<div class="summary-section-text">📖 ${filesRead.slice(0, 8).map(f => escapeHtml(f)).join(', ')}${filesRead.length > 8 ? '...' : ''}</div>` : ''}
+            ${filesEdited.length > 0 ? `<div class="summary-section-text">✏️ ${filesEdited.slice(0, 8).map(f => escapeHtml(f)).join(', ')}${filesEdited.length > 8 ? '...' : ''}</div>` : ''}
+          </div>
+        </div>
+      ` : ''}
+
+      ${aiSummary.notes ? `
+        <div class="summary-section">
+          <div class="summary-section-icon">📝</div>
+          <div class="summary-section-content">
+            <div class="summary-section-title">ЗАМЕТКИ</div>
+            <div class="summary-section-text">${escapeHtml(aiSummary.notes)}</div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function buildHeuristicSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations }) {
   // Generate a smart title from the most meaningful prompt
   const title = generateSessionTitle(prompts, session);
 
