@@ -62,14 +62,19 @@ async def get_timeline(
 async def get_sessions(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    project: str | None = Query(None, description="Filter by project name"),
 ) -> dict[str, Any]:
     """List sessions."""
     store = ObservationStore()
-    sessions = store.get_sessions(limit=limit, offset=offset)
+    if project:
+        sessions = store.get_sessions_for_project(project, limit=limit)
+    else:
+        sessions = store.get_sessions(limit=limit, offset=offset)
     return {
         "sessions": sessions,
         "limit": limit,
         "offset": offset,
+        "project": project,
     }
 
 

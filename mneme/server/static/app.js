@@ -40,24 +40,45 @@ function initHeatmap() {
 }
 
 // Project tabs
-function initProjectTabs() {
+async function initProjectTabs() {
   const container = document.getElementById('project-tabs');
+  container.innerHTML = '';
 
-  // Add demo projects
-  const projects = ['psa-saas-work', 'kimi-mneme', 'backend-api'];
-  projects.forEach(p => {
-    const btn = document.createElement('button');
-    btn.className = 'project-tab';
-    btn.dataset.project = p;
-    btn.textContent = p;
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.project-tab').forEach(t => t.classList.remove('active'));
-      btn.classList.add('active');
-      currentProject = p;
-      loadObservations();
-    });
-    container.appendChild(btn);
+  // Add "All" tab
+  const allBtn = document.createElement('button');
+  allBtn.className = 'project-tab active';
+  allBtn.dataset.project = 'all';
+  allBtn.textContent = 'All';
+  allBtn.addEventListener('click', () => {
+    document.querySelectorAll('.project-tab').forEach(t => t.classList.remove('active'));
+    allBtn.classList.add('active');
+    currentProject = 'all';
+    loadObservations();
   });
+  container.appendChild(allBtn);
+
+  // Load projects from API
+  try {
+    const res = await fetch(`${API_BASE}/projects`);
+    const data = await res.json();
+    const projects = data.projects || [];
+
+    projects.forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'project-tab';
+      btn.dataset.project = p.name || p;
+      btn.textContent = p.name || p;
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.project-tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        currentProject = p.name || p;
+        loadObservations();
+      });
+      container.appendChild(btn);
+    });
+  } catch (err) {
+    console.error('Failed to load projects:', err);
+  }
 }
 
 // Filters
@@ -150,7 +171,14 @@ function animateValue(id, target) {
 // Load observations
 async function loadObservations() {
   try {
-    const res = await fetch(`${API_BASE}/sessions?limit=10`);
+    // Build query params
+    const params = new URLSearchParams();
+    params.append('limit', '20');
+    if (currentProject && currentProject !== 'all') {
+      params.append('project', currentProject);
+    }
+
+    const res = await fetch(`${API_BASE}/sessions?${params.toString()}`);
     const data = await res.json();
 
     const container = document.getElementById('observations-stream');
@@ -310,23 +338,27 @@ function addLog(level, message) {
 // Utilities
 function formatDate(dateStr) {
   if (!dateStr) return 'Unknown';
-  const date = new Date(dateStr);
+  // SQLite returns ISO format or local time — ensure proper parsing
+  const date = new Date(dateStr.replace(' ', 'T') + (dateStr.includes('T') || dateStr.includes('Z') ? '' : 'Z'));
+  if (isNaN(date.getTime())) return dateStr;
+
   const now = new Date();
   const diff = now - date;
 
   // Less than 1 hour
-  if (diff < 3600000) {
+  if (diff < 3600000 && diff >= 0) {
     const mins = Math.floor(diff / 60000);
-    return mins < 1 ? 'Just now' : `${mins}m ago`;
+    return mins < 1 ? 'только что' : `${mins} мин назад`;
   }
 
   // Less than 24 hours
-  if (diff < 86400000) {
+  if (diff < 86400000 && diff >= 0) {
     const hours = Math.floor(diff / 3600000);
-    return `${hours}h ago`;
+    return `${hours} ч назад`;
   }
 
-  return date.toLocaleDateString();
+  // Format as localized date
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function escapeHtml(text) {
@@ -806,7 +838,9 @@ function buildLearnedSummary(toolsUsed, fileChanges, observations) {
 
 function formatDateTime(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
+  // Ensure proper parsing of SQLite datetime
+  const d = new Date(dateStr.replace(' ', 'T') + (dateStr.includes('T') || dateStr.includes('Z') ? '' : 'Z'));
+  if (isNaN(d.getTime())) return dateStr;
   return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
