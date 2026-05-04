@@ -451,7 +451,7 @@ async function loadObservations() {
       return;
     }
 
-    container.innerHTML = data.sessions.map(s => renderSessionCard(s)).join('');
+    container.innerHTML = data.sessions.slice().reverse().map(s => renderSessionCard(s)).join('');
 
   } catch (err) {
     addLog('error', `Failed to load observations: ${err.message}`);
@@ -487,7 +487,7 @@ async function loadFilteredObservations() {
       return;
     }
 
-    container.innerHTML = data.observations.map(o => renderObservationCard(o)).join('');
+    container.innerHTML = data.observations.slice().reverse().map(o => renderObservationCard(o)).join('');
 
   } catch (err) {
     addLog('error', `Failed to load filtered observations: ${err.message}`);
@@ -534,7 +534,7 @@ async function loadStructuredObservations() {
       return;
     }
 
-    container.innerHTML = data.observations.map(o => renderStructuredCard(o)).join('');
+    container.innerHTML = data.observations.slice().reverse().map(o => renderStructuredCard(o)).join('');
 
   } catch (err) {
     addLog('error', `Failed to load structured observations: ${err.message}`);
@@ -604,7 +604,7 @@ async function loadAssistantMessages() {
       return;
     }
 
-    container.innerHTML = data.messages.map(m => `
+    container.innerHTML = data.messages.slice().reverse().map(m => `
       <div class="observation-card" style="border-left: 3px solid #38bdf8;">
         <div class="card-header">
           <div class="card-badges">
@@ -661,7 +661,7 @@ async function searchObservations(query) {
 
     // Render structured cards if results have 'type' field (structured), else regular
     const isStructured = results.length > 0 && results[0].hasOwnProperty('facts');
-    container.innerHTML = results.map(r => isStructured ? renderStructuredCard(r) : renderObservationCard(r)).join('');
+    container.innerHTML = results.slice().reverse().map(r => isStructured ? renderStructuredCard(r) : renderObservationCard(r)).join('');
 
   } catch (err) {
     addLog('error', `Search failed: ${err.message}`);
