@@ -97,7 +97,7 @@ def parse_wire_line(session_id: str, line: str) -> WireEvent | None:
                 encrypted=payload.get("encrypted"),
             )
         case "StatusUpdate":
-            tu = payload.get("token_usage", {})
+            tu = payload.get("token_usage") or {}
             return StatusUpdateEvent(
                 **base,
                 context_usage=payload.get("context_usage", 0.0),
