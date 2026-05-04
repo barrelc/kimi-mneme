@@ -37,6 +37,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "click>=8.1.0",
     "watchdog>=6.0.0",
+    "winloop>=0.1.0; platform_system=='Windows'",
 ]
 
 [project.optional-dependencies]

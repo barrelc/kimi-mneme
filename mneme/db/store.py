@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -63,6 +64,7 @@ class ObservationStore:
         self.db_path = db_path or config["db"]["path"]
         self.vector_store = VectorStore()
         self._ensure_db()
+        self._local = threading.local()
 
     def _ensure_db(self) -> None:
         """Ensure database exists."""
@@ -73,7 +75,10 @@ class ObservationStore:
             init_db(self.db_path)
 
     def _get_conn(self) -> sqlite3.Connection:
-        return get_connection(self.db_path)
+        # Reuse connection per thread
+        if not hasattr(self._local, 'conn') or self._local.conn is None:
+            self._local.conn = get_connection(self.db_path)
+        return self._local.conn
 
     # -----------------------------------------------------------------------
     # Sessions

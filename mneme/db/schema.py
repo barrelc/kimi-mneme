@@ -420,7 +420,9 @@ def init_db(db_path: str | Path) -> sqlite3.Connection:
 
 def get_connection(db_path: str | Path) -> sqlite3.Connection:
     """Get a database connection."""
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
     return conn

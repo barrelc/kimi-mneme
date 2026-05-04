@@ -107,6 +107,12 @@ mneme server
 
 The server runs on `http://localhost:37777` by default.
 
+### Platform Notes
+
+**Windows**: The server is started with `CREATE_NEW_PROCESS_GROUP` flag so it survives when the parent console (e.g., Kimi CLI) exits. Logs are written to `~/.kimi/mneme/server.log`.
+
+**macOS/Linux**: The server runs as a background process with `start_new_session=True`. Logs are written to `~/.kimi/mneme/server.log`.
+
 ---
 
 ## Configuration
@@ -167,6 +173,7 @@ Project config merges with global config (project values override global).
 | `MNEME_SERVER_PORT` | Web server port | `37777` |
 | `MOONSHOT_API_KEY` | API key for AI compression | — |
 | `MNEME_LOG_LEVEL` | Logging level | `INFO` |
+| `MNEME_SERVER_HOST` | Web server host | `127.0.0.1` |
 
 ---
 

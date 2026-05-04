@@ -384,6 +384,29 @@ Observations:
 Summary:
 ```
 
+## Cross-Platform Support
+
+### Platform-Specific Components
+
+| Component | Windows | macOS | Linux | iOS/BSD |
+|-----------|---------|-------|-------|---------|
+| Filesystem Watcher | `WindowsApiObserver` | `FSEventsObserver` | `InotifyObserver` | `PollingObserver` |
+| Event Loop | `winloop` (optional) | `asyncio` | `asyncio` | `asyncio` |
+| Process Launch | `CREATE_NEW_PROCESS_GROUP` | `start_new_session` | `start_new_session` | `start_new_session` |
+| Server Logs | `~/.kimi/mneme/server.log` | `~/.kimi/mneme/server.log` | `~/.kimi/mneme/server.log` | `~/.kimi/mneme/server.log` |
+
+### Windows Notes
+
+- **Process survival**: Server uses `CREATE_NEW_PROCESS_GROUP` flag to survive parent console closure
+- **No console window**: `CREATE_NO_WINDOW` prevents popup console window
+- **Event loop**: Optional `winloop` package provides better async performance than default `asyncio`
+- **Background scan**: Disabled by default on large databases to prevent startup overload
+
+### macOS/Linux Notes
+
+- **Session management**: `start_new_session=True` detaches from parent session
+- **Logs**: Server stdout/stderr redirected to `~/.kimi/mneme/server.log`
+
 ## Performance Considerations
 
 | Metric | Target |

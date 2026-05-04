@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from typing import Any
 
 from mneme.config import load_config
@@ -21,9 +22,13 @@ class WireStore:
     def __init__(self, db_path: str | None = None) -> None:
         config = load_config()
         self.db_path = db_path or config["db"]["path"]
+        self._local = threading.local()
 
     def _get_conn(self) -> Any:
-        return get_connection(self.db_path)
+        # Reuse connection per thread to avoid opening thousands of connections
+        if not hasattr(self._local, 'conn') or self._local.conn is None:
+            self._local.conn = get_connection(self.db_path)
+        return self._local.conn
 
     # ------------------------------------------------------------------
     # Session ensure

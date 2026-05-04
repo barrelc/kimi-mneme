@@ -437,18 +437,33 @@ def _start_server() -> bool:
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        if sys.platform == "win32":
-            # Use CREATE_NO_WINDOW instead of CREATE_NEW_CONSOLE to avoid popup
-            subprocess.Popen(
-                [sys.executable, "-m", "mneme.server"],
-                creationflags=subprocess.CREATE_NO_WINDOW,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
-        else:
-            # Redirect stdout/stderr to log file so crashes are visible
-            with open(log_file, "a", encoding="utf-8") as lf:
-                lf.write("\n--- server start ---\n")
+        # Always redirect stdout/stderr to a log file — using DEVNULL or PIPE
+        # on Windows can cause the child process to die when the parent exits.
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_file, "a", encoding="utf-8") as lf:
+            lf.write("\n--- server start ---\n")
+            lf.flush()
+
+            if sys.platform == "win32":
+                # Windows: CREATE_NEW_PROCESS_GROUP is critical — without it the
+                # server receives CTRL_BREAK_EVENT when the parent console closes
+                # and dies immediately.  CREATE_NO_WINDOW avoids a visible console.
+                subprocess.Popen(
+                    [sys.executable, "-m", "mneme.server"],
+                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
+                    stdout=lf,
+                    stderr=subprocess.STDOUT,
+                )
+            elif sys.platform == "darwin":
+                # macOS: use nohup-style backgrounding via subprocess
+                subprocess.Popen(
+                    [sys.executable, "-m", "mneme.server"],
+                    stdout=lf,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+            else:
+                # Linux and other Unix: redirect to log file for debugging
                 subprocess.Popen(
                     [sys.executable, "-m", "mneme.server"],
                     stdout=lf,

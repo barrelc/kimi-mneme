@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
 
 from loguru import logger
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
-from watchdog.observers import Observer
+
+# Cross-platform observer selection
+if sys.platform == "win32":
+    # Native Windows API observer — most efficient and stable on Windows
+    from watchdog.observers.read_directory_changes import WindowsApiObserver as PlatformObserver
+elif sys.platform == "darwin":
+    # Native macOS FSEvents observer
+    from watchdog.observers.fsevents import FSEventsObserver as PlatformObserver
+elif sys.platform.startswith("linux"):
+    # Native Linux inotify observer
+    from watchdog.observers.inotify import InotifyObserver as PlatformObserver
+else:
+    # Fallback polling for other platforms (iOS, BSD, etc.)
+    from watchdog.observers.polling import PollingObserver as PlatformObserver
 
 from mneme.wire.indexer import WireIndexer
 from mneme.wire.reader import SessionReader
@@ -69,7 +83,7 @@ class SessionWatcher:
         self.indexer = WireIndexer(db_path)
         self._readers: dict[str, SessionReader] = {}
         self._lock = threading.Lock()
-        self._observer: Observer | None = None
+        self._observer: PlatformObserver | None = None
         self._running = False
         self.on_ingest: Callable[[str, dict[str, int]], None] | None = None
 
@@ -83,15 +97,20 @@ class SessionWatcher:
             return
         self._running = True
 
-        # Start watchdog (lazy scan — only watch for new files)
         if self.sessions_dir.exists():
             handler = _WireEventHandler(self)
-            self._observer = Observer()
+            self._observer = PlatformObserver()
             self._observer.schedule(handler, str(self.sessions_dir), recursive=True)
             self._observer.start()
-            logger.info(f"SessionWatcher started on {self.sessions_dir}")
-            # Background scan existing sessions
-            threading.Thread(target=self._scan_all, daemon=True).start()
+            logger.info(
+                f"SessionWatcher started on {self.sessions_dir} "
+                f"(observer: {type(self._observer).__name__})"
+            )
+            # NOTE: Background scan disabled by default. It causes server
+            # instability on large databases (40k+ observations). Sessions
+            # are indexed lazily when accessed via API or when new wire
+            # events arrive via the filesystem watcher.
+            # threading.Thread(target=self._scan_all, daemon=True).start()
 
     def stop(self) -> None:
         """Stop watching."""
