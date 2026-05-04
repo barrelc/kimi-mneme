@@ -1400,7 +1400,7 @@ function cleanPromptText(text) {
   // Remove ANSI escape codes
   cleaned = cleaned.replace(/\x1b\[[0-9;]*m/g, '');
   // Remove box-drawing characters
-  cleaned = cleaned.replace(/[▐▛███▜▌▝▜█████▛▘▘▘ ▝▝⎿─]/g, '');
+  cleaned = cleaned.replace(/[▐▛▜▌▝▘⎿─]/g, '');
   // Remove excessive whitespace
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   // Truncate to reasonable length
