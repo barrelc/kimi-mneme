@@ -166,7 +166,9 @@ async def vector_search(
 async def semantic_search(
     q: str = Query(..., description="Semantic search query"),
     project: str | None = Query(None, description="Filter by project"),
-    fields: list[str] | None = Query(None, description="Fields to search: title, narrative, facts"),  # noqa: B008
+    fields: list[str] | None = Query(  # noqa: B008
+        None, description="Fields to search: title, narrative, facts"
+    ),
     limit: int = Query(10, ge=1, le=50),
     days: int | None = Query(None, description="Recency filter: last N days"),
 ) -> dict[str, Any]:
@@ -521,7 +523,9 @@ async def update_settings(payload: SettingsPayload) -> dict[str, Any]:
 async def codebase_search(
     q: str = Query(..., description="Search query for symbol names"),
     path: str = Query(".", description="Project root or file path"),
-    languages: str | None = Query(None, description="Comma-separated: python,javascript,typescript,rust,go"),
+    languages: str | None = Query(
+        None, description="Comma-separated: python,javascript,typescript,rust,go"
+    ),
     max_results: int = Query(20, ge=1, le=100),
     file_pattern: str | None = Query(None, description="Filter file paths containing substring"),
 ) -> dict[str, Any]:

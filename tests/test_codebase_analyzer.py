@@ -110,9 +110,7 @@ _private = 1
             path = f.name
 
         # Force regex by using unknown language
-        symbols = analyzer._regex_scan(
-            Path(path).read_text(), path, "python"
-        )
+        symbols = analyzer._regex_scan(Path(path).read_text(), path, "python")
         names = {s.name for s in symbols}
         assert "fallback_test" in names
         Path(path).unlink(missing_ok=True)

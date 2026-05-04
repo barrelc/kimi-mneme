@@ -69,9 +69,7 @@ async def lifespan(app: FastAPI):
             msg = {"type": "wire_update", "session_id": sid, "counts": counts}
             try:
                 if loop.is_running() and not loop.is_closed():
-                    asyncio.run_coroutine_threadsafe(
-                        manager.broadcast(msg), loop
-                    )
+                    asyncio.run_coroutine_threadsafe(manager.broadcast(msg), loop)
             except Exception:
                 pass  # Loop may be closed during shutdown
 

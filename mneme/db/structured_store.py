@@ -327,37 +327,29 @@ class StructuredObservationStore:
     def get_stats(self) -> dict[str, Any]:
         """Get statistics about structured observations."""
         with self._get_conn() as conn:
-            total = conn.execute(
-                "SELECT COUNT(*) FROM structured_observations"
-            ).fetchone()[0]
+            total = conn.execute("SELECT COUNT(*) FROM structured_observations").fetchone()[0]
 
-            by_type = conn.execute(
-                """
+            by_type = conn.execute("""
                 SELECT type, COUNT(*) as count
                 FROM structured_observations
                 GROUP BY type
                 ORDER BY count DESC
-                """
-            ).fetchall()
+                """).fetchall()
 
-            by_source = conn.execute(
-                """
+            by_source = conn.execute("""
                 SELECT source, COUNT(*) as count
                 FROM structured_observations
                 GROUP BY source
                 ORDER BY count DESC
-                """
-            ).fetchall()
+                """).fetchall()
 
-            by_project = conn.execute(
-                """
+            by_project = conn.execute("""
                 SELECT project, COUNT(*) as count
                 FROM structured_observations
                 GROUP BY project
                 ORDER BY count DESC
                 LIMIT 10
-                """
-            ).fetchall()
+                """).fetchall()
 
         return {
             "total": total,

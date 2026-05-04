@@ -26,7 +26,7 @@ class WireStore:
 
     def _get_conn(self) -> Any:
         # Reuse connection per thread to avoid opening thousands of connections
-        if not hasattr(self._local, 'conn') or self._local.conn is None:
+        if not hasattr(self._local, "conn") or self._local.conn is None:
             self._local.conn = get_connection(self.db_path)
         return self._local.conn
 

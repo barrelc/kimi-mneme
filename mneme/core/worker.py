@@ -34,7 +34,9 @@ class StructuringWorker:
             return
 
         self.running = True
-        logger.info(f"Structuring worker started (interval={self.interval}s, batch={self.batch_size})")
+        logger.info(
+            f"Structuring worker started (interval={self.interval}s, batch={self.batch_size})"
+        )
 
         while self.running:
             try:
@@ -52,9 +54,7 @@ class StructuringWorker:
     async def _process_batch(self, limit: int | None = None) -> None:
         """Process a batch of pending observations."""
         limit = limit or self.batch_size
-        messages = self.store.claim_pending_messages(
-            limit=limit, message_type="observation"
-        )
+        messages = self.store.claim_pending_messages(limit=limit, message_type="observation")
 
         for msg in messages:
             # Skip if exceeded max retries

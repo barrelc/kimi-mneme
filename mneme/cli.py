@@ -150,7 +150,11 @@ def stats() -> None:
 
 @main.command()
 @click.option("--force", is_flag=True, help="Skip confirmation prompt")
-@click.option("--keep-sessions", is_flag=True, help="Keep session metadata, delete only observations and wire events")
+@click.option(
+    "--keep-sessions",
+    is_flag=True,
+    help="Keep session metadata, delete only observations and wire events",
+)
 def reset(force: bool, keep_sessions: bool) -> None:
     """Reset database — delete all data and start fresh.
 
@@ -187,6 +191,7 @@ def reset(force: bool, keep_sessions: bool) -> None:
     # Stop server if running
     click.echo(" Stopping server if running...")
     import urllib.request
+
     try:
         urllib.request.urlopen("http://127.0.0.1:37777/api/health", timeout=2)
         # Server is running, we can't safely delete while it's up
@@ -199,13 +204,24 @@ def reset(force: bool, keep_sessions: bool) -> None:
     if keep_sessions:
         # Delete only observations and wire data, keep sessions table
         import sqlite3
+
         conn = sqlite3.connect(str(db_path))
         tables_to_clear = [
-            "observations", "wire_events", "session_stats", "thinking",
-            "assistant_messages", "session_todos", "session_summaries",
-            "session_checkpoints", "compaction_events", "pending_messages",
-            "observation_feedback", "patterns", "truncated_outputs",
-            "user_prompts", "summaries"
+            "observations",
+            "wire_events",
+            "session_stats",
+            "thinking",
+            "assistant_messages",
+            "session_todos",
+            "session_summaries",
+            "session_checkpoints",
+            "compaction_events",
+            "pending_messages",
+            "observation_feedback",
+            "patterns",
+            "truncated_outputs",
+            "user_prompts",
+            "summaries",
         ]
 
         # Also clear FTS

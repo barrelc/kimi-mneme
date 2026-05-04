@@ -397,7 +397,12 @@ def memory_workflow() -> dict[str, Any]:
     return {
         "workflow": "search → context → detail",
         "tools": {
-            "search": ["memory_search", "memory_semantic_search", "memory_by_concept", "memory_by_file"],
+            "search": [
+                "memory_search",
+                "memory_semantic_search",
+                "memory_by_concept",
+                "memory_by_file",
+            ],
             "context": ["memory_timeline", "memory_stats"],
             "detail": ["memory_recall"],
             "codebase": ["smart_search", "smart_outline", "smart_unfold"],

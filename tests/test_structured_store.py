@@ -21,6 +21,7 @@ def temp_db():
     init_db(db_path)
     # Create a session for foreign key constraints
     from mneme.db.store import ObservationStore
+
     store = ObservationStore(db_path=db_path)
     store.add_session("sess_1", "/home/user/myproject")
     store.add_session("sess_a", "/home/user/proj")
@@ -130,7 +131,11 @@ class TestStructuredObservationStore:
 
     def test_stats(self, temp_db):
         store = StructuredObservationStore(db_path=temp_db)
-        for t, title in [("feature", "Test feature 1"), ("bugfix", "Test bugfix"), ("feature", "Test feature 2")]:
+        for t, title in [
+            ("feature", "Test feature 1"),
+            ("bugfix", "Test bugfix"),
+            ("feature", "Test feature 2"),
+        ]:
             obs = ParsedObservation(
                 type=t,
                 title=title,
@@ -166,15 +171,13 @@ class TestStructuredObservationStore:
         )
         # First insertion succeeds (no raw_observation_id FK constraint)
         id1 = store.add_structured(
-            obs, session_id="sess_1", project="myapp",
-            raw_observation_id=None, source="heuristic"
+            obs, session_id="sess_1", project="myapp", raw_observation_id=None, source="heuristic"
         )
         assert id1 > 0
 
         # Second insertion is deduplicated
         id2 = store.add_structured(
-            obs, session_id="sess_1", project="myapp",
-            raw_observation_id=None, source="heuristic"
+            obs, session_id="sess_1", project="myapp", raw_observation_id=None, source="heuristic"
         )
         assert id2 == 0  # deduplicated
 
@@ -200,17 +203,14 @@ class TestStructuredObservationStore:
             source="heuristic",
         )
         id1 = store.add_structured(
-            obs, session_id="sess_1", project="myapp",
-            raw_observation_id=None, source="heuristic"
+            obs, session_id="sess_1", project="myapp", raw_observation_id=None, source="heuristic"
         )
         # Deduplicate 2 more times
         store.add_structured(
-            obs, session_id="sess_1", project="myapp",
-            raw_observation_id=None, source="heuristic"
+            obs, session_id="sess_1", project="myapp", raw_observation_id=None, source="heuristic"
         )
         store.add_structured(
-            obs, session_id="sess_1", project="myapp",
-            raw_observation_id=None, source="heuristic"
+            obs, session_id="sess_1", project="myapp", raw_observation_id=None, source="heuristic"
         )
 
         # get_linked_raw_observations returns primary + links (all None here)

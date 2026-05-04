@@ -76,7 +76,7 @@ class ObservationStore:
 
     def _get_conn(self) -> sqlite3.Connection:
         # Reuse connection per thread
-        if not hasattr(self._local, 'conn') or self._local.conn is None:
+        if not hasattr(self._local, "conn") or self._local.conn is None:
             self._local.conn = get_connection(self.db_path)
         return self._local.conn
 
@@ -179,7 +179,11 @@ class ObservationStore:
                 )
             logger.debug(f"Observation added: {obs_id}")
         else:
-            logger.debug(f"Observation deduplicated (hash: {content_hash})" if not obs_id else f"Observation added (no vector): {obs_id}")
+            logger.debug(
+                f"Observation deduplicated (hash: {content_hash})"
+                if not obs_id
+                else f"Observation added (no vector): {obs_id}"
+            )
 
         return obs_id or 0
 
@@ -291,27 +295,32 @@ class ObservationStore:
         if len(fts_results) < limit:
             with self._get_conn() as conn:
                 like_pattern = f"%{query}%"
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     SELECT DISTINCT s.id as session_id, s.cwd, s.summary,
                            (SELECT COUNT(*) FROM observations WHERE session_id = s.id) as obs_count
                     FROM sessions s
                     WHERE s.id LIKE ? OR s.cwd LIKE ? OR s.summary LIKE ?
                     LIMIT ?
-                """, (like_pattern, like_pattern, like_pattern, limit)).fetchall()
+                """,
+                    (like_pattern, like_pattern, like_pattern, limit),
+                ).fetchall()
 
                 for row in rows:
                     # Check if we already have observations from this session
                     has_obs = any(r.get("session_id") == row["session_id"] for r in fts_results)
                     if not has_obs:
-                        session_results.append({
-                            "id": f"session_{row['session_id']}",
-                            "session_id": row["session_id"],
-                            "event_type": "SessionMatch",
-                            "tool_name": None,
-                            "file_path": row["cwd"],
-                            "created_at": None,
-                            "snippet": f"Session with {row['obs_count']} observations: {row['summary'] or row['cwd'] or row['session_id']}",
-                        })
+                        session_results.append(
+                            {
+                                "id": f"session_{row['session_id']}",
+                                "session_id": row["session_id"],
+                                "event_type": "SessionMatch",
+                                "tool_name": None,
+                                "file_path": row["cwd"],
+                                "created_at": None,
+                                "snippet": f"Session with {row['obs_count']} observations: {row['summary'] or row['cwd'] or row['session_id']}",
+                            }
+                        )
 
         # Vector search
         vector_results = []
@@ -999,20 +1008,16 @@ class ObservationStore:
             savings_percent, compaction_count, observations_preserved.
         """
         with self._get_conn() as conn:
-            row = conn.execute(
-                """
+            row = conn.execute("""
                 SELECT
                     COALESCE(SUM(tokens_before), 0) as total_before,
                     COALESCE(SUM(tokens_after), 0) as total_after,
                     COALESCE(SUM(observations_dropped), 0) as total_dropped,
                     COUNT(*) as compaction_count
                 FROM compaction_events
-                """
-            ).fetchone()
+                """).fetchone()
 
-            total_obs = conn.execute(
-                "SELECT COUNT(*) FROM observations"
-            ).fetchone()[0]
+            total_obs = conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
 
         total_before = row[0] or 0
         total_after = row[1] or 0

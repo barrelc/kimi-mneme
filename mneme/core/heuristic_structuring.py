@@ -121,7 +121,9 @@ class HeuristicStructuring:
             facts.append(f"Error: {self._truncate(error, 100)}")
 
         # Extract key lines from output
-        lines = [line.strip() for line in output.split("\n") if line.strip() and not line.startswith(" ")]
+        lines = [
+            line.strip() for line in output.split("\n") if line.strip() and not line.startswith(" ")
+        ]
         for line in lines[:3]:
             if len(line) > 10:
                 facts.append(self._truncate(line, 120))

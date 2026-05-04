@@ -48,7 +48,11 @@ SENSITIVE_PATTERNS = [
     # AWS keys
     (r"(?i)(AKIA[0-9A-Z]{16})", r"[PRIVATE]"),
     # Private keys
-    (r"-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----.*?-----END (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----", r"[PRIVATE_KEY]", re.DOTALL),
+    (
+        r"-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----.*?-----END (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----",
+        r"[PRIVATE_KEY]",
+        re.DOTALL,
+    ),
     # Passwords in URLs
     (r"(?i)([a-z][a-z0-9+.-]*://[^:]+:)[^@]+(@[^/]+)", r"\1[PRIVATE]\2"),
     # GitHub tokens

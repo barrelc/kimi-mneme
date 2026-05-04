@@ -27,13 +27,16 @@ def temp_db():
     db.execute("INSERT INTO sessions (id, cwd) VALUES (?, ?)", ("sess_delete", "C:/test/delete"))
     db.execute("INSERT INTO sessions (id, cwd) VALUES (?, ?)", ("sess_sync", "C:/test/sync"))
     for i in range(3):
-        db.execute("INSERT INTO sessions (id, cwd) VALUES (?, ?)", (f"sess_{i}", f"C:/test/proj_{i}"))
+        db.execute(
+            "INSERT INTO sessions (id, cwd) VALUES (?, ?)", (f"sess_{i}", f"C:/test/proj_{i}")
+        )
     db.execute("INSERT INTO sessions (id, cwd) VALUES (?, ?)", ("sess_minimal", "C:/test/minimal"))
     db.commit()
     db.close()
     yield db_path
     # Cleanup: reset singleton connection so next test gets a fresh one
     from mneme.db.vector import SQLiteVecStore
+
     SQLiteVecStore._singleton_conn = None
     SQLiteVecStore._singleton_db_path = None
     with contextlib.suppress(PermissionError):
@@ -47,7 +50,11 @@ def sample_observation():
         type="feature",
         title="Add user authentication",
         subtitle="Implemented OAuth2 login flow",
-        facts=["Added OAuth2 provider config", "Created login endpoint", "Session management works"],
+        facts=[
+            "Added OAuth2 provider config",
+            "Created login endpoint",
+            "Session management works",
+        ],
         narrative="We needed a secure way for users to log in. OAuth2 was chosen for its industry standard approach.",
         concepts=["auth", "oauth2", "security"],
         files_read=["docs/oauth.md"],
@@ -58,13 +65,14 @@ def sample_observation():
 def _close_store(store):
     """Close a store's connection to avoid SQLite locks."""
     # For StructuredObservationStore
-    if hasattr(store, '_local') and hasattr(store._local, "conn") and store._local.conn:
+    if hasattr(store, "_local") and hasattr(store._local, "conn") and store._local.conn:
         store._local.conn.commit()
         store._local.conn.close()
         store._local.conn = None
     # For SQLiteVecStore: reset singleton if this instance owns it
-    if hasattr(store, '_owns_singleton') and store._owns_singleton:
+    if hasattr(store, "_owns_singleton") and store._owns_singleton:
         from mneme.db.vector import SQLiteVecStore
+
         if SQLiteVecStore._singleton_conn:
             try:
                 SQLiteVecStore._singleton_conn.commit()

@@ -112,7 +112,7 @@ class CollectionsStore:
                 if not any(c in obs_concepts for c in concepts):
                     continue
             if files:
-                obs_files = (obs.get("files_read", []) + obs.get("files_modified", []))
+                obs_files = obs.get("files_read", []) + obs.get("files_modified", [])
                 if not any(f in " ".join(obs_files) for f in files):
                     continue
             filtered.append(obs)
@@ -206,15 +206,13 @@ class CollectionsStore:
                 (project,),
             ).fetchall()
         else:
-            rows = conn.execute(
-                """
+            rows = conn.execute("""
                 SELECT c.*, COUNT(ci.structured_id) as item_count
                 FROM observation_collections c
                 LEFT JOIN collection_items ci ON c.id = ci.collection_id
                 GROUP BY c.id
                 ORDER BY c.updated_at DESC
-                """
-            ).fetchall()
+                """).fetchall()
         self._close_conn()
 
         results = []
@@ -422,11 +420,16 @@ class CollectionsStore:
             # Encode all items (title + narrative)
             item_texts = []
             for obs in items:
-                text = " ".join(filter(None, [
-                    obs.get("title", ""),
-                    obs.get("narrative", ""),
-                    " ".join(obs.get("facts", [])),
-                ]))
+                text = " ".join(
+                    filter(
+                        None,
+                        [
+                            obs.get("title", ""),
+                            obs.get("narrative", ""),
+                            " ".join(obs.get("facts", [])),
+                        ],
+                    )
+                )
                 item_texts.append(text)
 
             item_embeddings = _encode_texts(item_texts, model_name=None)
@@ -448,11 +451,13 @@ class CollectionsStore:
             results = []
             for idx, score in indexed[:limit]:
                 obs = items[idx]
-                results.append({
-                    "observation": obs,
-                    "relevance": round(score, 4),
-                    "rank": len(results) + 1,
-                })
+                results.append(
+                    {
+                        "observation": obs,
+                        "relevance": round(score, 4),
+                        "rank": len(results) + 1,
+                    }
+                )
 
             return {
                 "collection": name,
@@ -468,12 +473,17 @@ class CollectionsStore:
             q_lower = question.lower()
             scored = []
             for obs in items:
-                text = " ".join(filter(None, [
-                    obs.get("title", ""),
-                    obs.get("narrative", ""),
-                    " ".join(obs.get("facts", [])),
-                    " ".join(obs.get("concepts", [])),
-                ])).lower()
+                text = " ".join(
+                    filter(
+                        None,
+                        [
+                            obs.get("title", ""),
+                            obs.get("narrative", ""),
+                            " ".join(obs.get("facts", [])),
+                            " ".join(obs.get("concepts", [])),
+                        ],
+                    )
+                ).lower()
                 score = 0
                 for word in q_lower.split():
                     if len(word) > 2:

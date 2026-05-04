@@ -12,7 +12,7 @@ from mneme.core.prompts.json_parser import (
 
 class TestStripCodeFences:
     def test_basic_fence(self):
-        text = "```json\n{\"a\": 1}\n```"
+        text = '```json\n{"a": 1}\n```'
         assert _strip_code_fences(text) == '{"a": 1}'
 
     def test_no_fence(self):

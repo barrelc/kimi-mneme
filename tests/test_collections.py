@@ -21,6 +21,7 @@ def temp_db():
     init_db(db_path)
     # Create a session
     from mneme.db.store import ObservationStore
+
     store = ObservationStore(db_path=db_path)
     store.add_session("sess_1", "/home/user/myproject")
     yield db_path

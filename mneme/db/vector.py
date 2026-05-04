@@ -42,6 +42,7 @@ def _is_chroma_broken_on_windows() -> bool:
 # Embedding helper
 # ---------------------------------------------------------------------------
 
+
 class _EmbeddingCache:
     """Lazy-loaded sentence-transformers model with caching."""
 
@@ -94,6 +95,7 @@ def _numpy_to_blob(embedding: np.ndarray) -> bytes:
 # ---------------------------------------------------------------------------
 # ChromaDB (legacy, disabled on Windows >= 1.0)
 # ---------------------------------------------------------------------------
+
 
 class VectorStore:
     """Store and search observation embeddings via ChromaDB."""
@@ -245,7 +247,9 @@ class VectorStore:
                 logger.error(f"Failed to add fact vector: {e}")
 
         if added_ids:
-            logger.debug(f"Structured vectors added: {len(added_ids)} fields for so_{structured_id}")
+            logger.debug(
+                f"Structured vectors added: {len(added_ids)} fields for so_{structured_id}"
+            )
         return added_ids
 
     def search(
@@ -326,6 +330,7 @@ class VectorStore:
 # ---------------------------------------------------------------------------
 # sqlite-vec (lightweight alternative, works everywhere)
 # ---------------------------------------------------------------------------
+
 
 class SQLiteVecStore:
     """Store and search structured observation embeddings via sqlite-vec.
@@ -677,12 +682,14 @@ class SQLiteVecStore:
 
                 rows = conn.execute(sql, params).fetchall()
                 for row in rows:
-                    results.append({
-                        "structured_id": row["structured_id"],
-                        "session_id": row["session_id"],
-                        "field": field,
-                        "distance": row["distance"],
-                    })
+                    results.append(
+                        {
+                            "structured_id": row["structured_id"],
+                            "session_id": row["session_id"],
+                            "field": field,
+                            "distance": row["distance"],
+                        }
+                    )
             except Exception as e:
                 logger.error(f"sqlite-vec search failed on {table}: {e}")
 
@@ -882,5 +889,7 @@ class SQLiteVecStore:
         self.update_sync_state(max_id)
 
         if total:
-            logger.info(f"sqlite-vec sync: {total} embeddings for {len(observations)} observations (id > {last_id})")
+            logger.info(
+                f"sqlite-vec sync: {total} embeddings for {len(observations)} observations (id > {last_id})"
+            )
         return total

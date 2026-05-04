@@ -325,7 +325,8 @@ class Injector:
         # Filter by min_relevance AND exact project match
         # Only include sessions from the same project (exact CWD or same project name)
         filtered = [
-            s for s in scored
+            s
+            for s in scored
             if s["_relevance_score"] >= self.min_relevance
             and (
                 s.get("cwd", "") == cwd

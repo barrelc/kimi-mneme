@@ -128,7 +128,7 @@ def _extract_docstring(body_node: Any, source_bytes: bytes) -> str | None:
     if first.type == "expression_statement":
         inner = first.children[0] if first.children else None
         if inner and inner.type in ("string", "string_literal"):
-            text = source_bytes[inner.start_byte:inner.end_byte].decode("utf-8", errors="replace")
+            text = source_bytes[inner.start_byte : inner.end_byte].decode("utf-8", errors="replace")
             return text.strip("'\"\n ")
     return None
 
@@ -141,14 +141,14 @@ def _extract_signature(node: Any, source_bytes: bytes) -> str:
     params_node = node.child_by_field_name("parameters")
     params = ""
     if params_node:
-        params = source_bytes[params_node.start_byte:params_node.end_byte].decode(
+        params = source_bytes[params_node.start_byte : params_node.end_byte].decode(
             "utf-8", errors="replace"
         )
 
     ret_node = node.child_by_field_name("return_type")
     ret = ""
     if ret_node:
-        ret_text = source_bytes[ret_node.start_byte:ret_node.end_byte].decode(
+        ret_text = source_bytes[ret_node.start_byte : ret_node.end_byte].decode(
             "utf-8", errors="replace"
         )
         ret = f" -> {ret_text}"
@@ -175,7 +175,7 @@ def _extract_symbol(node: Any, source_bytes: bytes, file_path: str, language: st
 
     body = None
     if body_node:
-        body = source_bytes[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+        body = source_bytes[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
     return Symbol(
         name=name,
@@ -250,7 +250,7 @@ class CodebaseAnalyzer:
         if language == "python":
             # Match: def name(params) -> return:
             for match in re.finditer(r"^def\s+(\w+)\s*\([^)]*\)(?:\s*->\s*[^:]+)?", source, re.M):
-                line = source[:match.start()].count("\n") + 1
+                line = source[: match.start()].count("\n") + 1
                 symbols.append(
                     Symbol(
                         name=match.group(1),
@@ -264,7 +264,7 @@ class CodebaseAnalyzer:
                 )
             # Match: class Name:
             for match in re.finditer(r"^class\s+(\w+)(?:\([^)]*\))?:", source, re.M):
-                line = source[:match.start()].count("\n") + 1
+                line = source[: match.start()].count("\n") + 1
                 symbols.append(
                     Symbol(
                         name=match.group(1),
@@ -279,7 +279,7 @@ class CodebaseAnalyzer:
 
         elif language in ("javascript", "typescript"):
             for match in re.finditer(r"function\s+(\w+)\s*\([^)]*\)", source):
-                line = source[:match.start()].count("\n") + 1
+                line = source[: match.start()].count("\n") + 1
                 symbols.append(
                     Symbol(
                         name=match.group(1),
@@ -292,7 +292,7 @@ class CodebaseAnalyzer:
                     )
                 )
             for match in re.finditer(r"class\s+(\w+)", source):
-                line = source[:match.start()].count("\n") + 1
+                line = source[: match.start()].count("\n") + 1
                 symbols.append(
                     Symbol(
                         name=match.group(1),
@@ -346,7 +346,15 @@ class CodebaseAnalyzer:
                     break
                 # Skip common non-source directories
                 parts = set(file_path.parts)
-                if parts & {"node_modules", ".venv", "venv", "__pycache__", ".git", "dist", "build"}:
+                if parts & {
+                    "node_modules",
+                    ".venv",
+                    "venv",
+                    "__pycache__",
+                    ".git",
+                    "dist",
+                    "build",
+                }:
                     continue
                 symbols.extend(self.scan_file(str(file_path)))
                 scanned += 1
