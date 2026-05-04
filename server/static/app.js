@@ -230,9 +230,21 @@ function renderObservationCard(obs) {
   const badgeClass = getBadgeClass(obs.event_type || obs.type);
   const badgeName = (obs.event_type || obs.type || 'Unknown').replace(/([A-Z])/g, ' $1').trim();
   const date = formatDate(obs.timestamp || obs.created_at);
+  
+  // For UserPromptSubmit, show prompt with context hint
+  let bodyContent = '';
+  let contextHint = '';
+  
+  if (obs.event_type === 'UserPromptSubmit' && obs.prompt) {
+    bodyContent = `<p class="prompt-text">${escapeHtml(obs.prompt)}</p>`;
+    // Add a hint that this is a user prompt
+    contextHint = `<div class="prompt-hint">💬 User asked</div>`;
+  } else {
+    bodyContent = `<p>${escapeHtml(obs.snippet || obs.tool_output || obs.error || obs.prompt || '')}</p>`;
+  }
 
   return `
-    <div class="observation-card">
+    <div class="observation-card" data-session-id="${obs.session_id || ''}" data-created-at="${obs.created_at || ''}">
       <div class="card-header">
         <div class="card-badges">
           <span class="badge-pill ${badgeClass}">${badgeName}</span>
@@ -240,9 +252,10 @@ function renderObservationCard(obs) {
         </div>
         <span class="card-meta">#${obs.id} · ${date}</span>
       </div>
+      ${contextHint}
       <div class="card-body">
         ${obs.file_path ? `<p><code>${escapeHtml(obs.file_path)}</code></p>` : ''}
-        <p>${escapeHtml(obs.snippet || obs.tool_output || obs.error || obs.prompt || '')}</p>
+        ${bodyContent}
       </div>
       <div class="card-footer">
         <span class="card-action" onclick="viewObservation(${obs.id})">👁 View</span>
@@ -546,8 +559,71 @@ function viewDetails(sessionId) {
   viewTimeline(sessionId);
 }
 
-function viewObservation(id) {
+async function viewObservation(id) {
   addLog('info', `Viewing observation #${id}`);
+  
+  try {
+    const resp = await fetch(`${API_BASE}/observation/${id}`);
+    if (!resp.ok) throw new Error('Failed to load');
+    const obs = await resp.json();
+    
+    showObservationModal(obs);
+  } catch (e) {
+    addLog('error', `Failed to view observation: ${e.message}`);
+  }
+}
+
+function showObservationModal(obs) {
+  // Remove existing modal
+  const existing = document.querySelector('.modal-overlay');
+  if (existing) existing.remove();
+  
+  const fields = [];
+  
+  if (obs.prompt) {
+    fields.push(`<div class="field-label">Prompt</div><pre>${escapeHtml(obs.prompt)}</pre>`);
+  }
+  if (obs.tool_output) {
+    fields.push(`<div class="field-label">Output</div><pre>${escapeHtml(obs.tool_output)}</pre>`);
+  }
+  if (obs.error) {
+    fields.push(`<div class="field-label">Error</div><pre style="color: var(--error)">${escapeHtml(obs.error)}</pre>`);
+  }
+  if (obs.tool_input) {
+    fields.push(`<div class="field-label">Tool Input</div><pre>${escapeHtml(obs.tool_input)}</pre>`);
+  }
+  if (obs.file_path) {
+    fields.push(`<div class="field-label">File</div><p><code>${escapeHtml(obs.file_path)}</code></p>`);
+  }
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <span class="badge-pill ${getBadgeClass(obs.event_type)}">${obs.event_type}</span>
+          <span style="margin-left: 0.5rem; color: var(--text-dim); font-size: 0.85rem;">#${obs.id}</span>
+        </div>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="field-label">Session</div>
+        <p style="font-size: 0.85rem; color: var(--text-dim);">${obs.session_id || 'Unknown'}</p>
+        
+        <div class="field-label">Time</div>
+        <p style="font-size: 0.85rem; color: var(--text-dim);">${formatDate(obs.created_at)}</p>
+        
+        ${fields.join('')}
+      </div>
+    </div>
+  `;
+  
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+  
+  document.body.appendChild(modal);
 }
 
 function copyId(id) {
