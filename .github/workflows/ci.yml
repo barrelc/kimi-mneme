@@ -52,6 +52,16 @@ jobs:
           python-version: '3.13'
           enable-cache: true
 
+      - name: Sync version from git tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
+          sed -i "s/^__version__ = \".*\"/__version__ = \"${VERSION}\"/" mneme/__init__.py
+          sed -i "s/<!-- VERSION -->.*<!-- \/VERSION -->/<!-- VERSION -->${VERSION}<!-- \/VERSION -->/g" README.md
+          sed -i "s/<!-- VERSION -->.*<!-- \/VERSION -->/<!-- VERSION -->${VERSION}<!-- \/VERSION -->/g" docs/index.html
+          sed -i "s/<!-- VERSION -->.*<!-- \/VERSION -->/<!-- VERSION -->${VERSION}<!-- \/VERSION -->/g" docs/ARCHITECTURE.md
+
       - name: Build
         run: uv build
 
