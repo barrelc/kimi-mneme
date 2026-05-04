@@ -413,8 +413,8 @@ async function loadObservations() {
     container.style.display = 'block';
     document.getElementById('timeline-view').style.display = 'none';
 
-    // If a type filter is active (not 'all' or 'SessionStart'), load observations directly
-    if (currentFilter && currentFilter !== 'all' && currentFilter !== 'SessionStart') {
+    // If a type filter is active (not 'SessionStart'), load observations directly
+    if (currentFilter && currentFilter !== 'SessionStart') {
       if (currentFilter === 'thinking') {
         await loadThinking();
         return;
@@ -610,7 +610,7 @@ async function loadAssistantMessages() {
           <div class="card-badges">
             <span class="badge-pill" style="background: rgba(56,189,248,0.2); color: #38bdf8;">ASSISTANT</span>
           </div>
-          <span class="card-meta">${formatDate(m.timestamp)}</span>
+          <span class="card-meta">${formatDateTime(m.timestamp)}</span>
         </div>
         <div class="card-body">
           <p>${escapeHtml(m.content)}</p>
@@ -759,7 +759,9 @@ function renderStructuredCard(obs, expanded = false) {
     `<li style="margin: 0.25rem 0; color: var(--text-secondary);">• ${escapeHtml(f)}</li>`
   ).join('');
 
-  const filesHtml = (obs.files_modified || []).concat(obs.files_read || []).slice(0, 3).map(f =>
+  const filesModified = Array.isArray(obs.files_modified) ? obs.files_modified : [];
+  const filesRead = Array.isArray(obs.files_read) ? obs.files_read : [];
+  const filesHtml = filesModified.concat(filesRead).slice(0, 3).map(f =>
     `<code style="font-size: 0.75rem; margin-right: 0.5rem;">${escapeHtml(f)}</code>`
   ).join('');
 
