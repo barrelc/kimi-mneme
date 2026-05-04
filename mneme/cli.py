@@ -236,7 +236,7 @@ def _register_hooks() -> bool:
         # Use forward slashes in paths to avoid TOML escape issues on Windows.
         # Wrap paths in quotes to handle spaces (e.g. "Program Files" on Windows).
         cmd = f'"{python_exe}" "{script_path}"'.replace("\\", "/")
-        hook_entries.append(f'[[hooks]]\nevent = "{event}"\ncommand = "{cmd}"\n')
+        hook_entries.append(f"[[hooks]]\nevent = \"{event}\"\ncommand = '{cmd}'\n")
 
     hook_block = (
         "\n# === kimi-mneme hooks ===\n"
