@@ -70,3 +70,9 @@ docs/IMPLEMENTATION_PLAN.md
 .kimi/
 .playwright-mcp/
 
+# Screenshots / images
+*.png
+*.jpg
+*.jpeg
+*.gif
+
