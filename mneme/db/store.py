@@ -104,7 +104,7 @@ class ObservationStore:
     # Observations
     # -----------------------------------------------------------------------
 
-    def add_observation(self, observation: Observation) -> int:
+    def add_observation(self, observation: Observation, skip_vector: bool = False) -> int:
         """Add an observation and return its ID."""
         content = self._observation_to_text(observation)
         content_hash = self._hash_content(content) if content else None
@@ -133,7 +133,7 @@ class ObservationStore:
             )
             obs_id = cursor.lastrowid
 
-        if obs_id:
+        if obs_id and not skip_vector:
             # Add to vector store for semantic search
             if content:
                 self.vector_store.add(
@@ -148,7 +148,7 @@ class ObservationStore:
                 )
             logger.debug(f"Observation added: {obs_id}")
         else:
-            logger.debug(f"Observation deduplicated (hash: {content_hash})")
+            logger.debug(f"Observation deduplicated (hash: {content_hash})" if not obs_id else f"Observation added (no vector): {obs_id}")
 
         return obs_id or 0
 

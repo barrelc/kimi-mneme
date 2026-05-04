@@ -107,15 +107,50 @@ class SessionWatcher:
     # ------------------------------------------------------------------
 
     def _scan_all(self) -> None:
-        """Scan all existing sessions on startup."""
-        if not self.sessions_dir.exists():
-            return
-        for hash_dir in self.sessions_dir.iterdir():
-            if not hash_dir.is_dir():
-                continue
-            for session_dir in hash_dir.iterdir():
-                if session_dir.is_dir() and (session_dir / "wire.jsonl").exists():
-                    self._register_session(session_dir)
+        """Scan recent existing sessions on startup (lazy — skips old sessions)."""
+        import time
+
+        logger.info("Starting background scan of recent sessions...")
+        try:
+            if not self.sessions_dir.exists():
+                logger.info("Sessions directory does not exist, skipping scan")
+                return
+
+            # Only scan sessions modified in the last 7 days to avoid
+            # blocking startup with huge historical backlogs.
+            cutoff = time.time() - (7 * 24 * 3600)
+            count = 0
+            skipped = 0
+
+            for hash_dir in self.sessions_dir.iterdir():
+                if not hash_dir.is_dir():
+                    continue
+                for session_dir in hash_dir.iterdir():
+                    if not session_dir.is_dir():
+                        continue
+                    wire_file = session_dir / "wire.jsonl"
+                    if not wire_file.exists():
+                        continue
+                    # Skip very old sessions
+                    try:
+                        mtime = wire_file.stat().st_mtime
+                        if mtime < cutoff:
+                            skipped += 1
+                            continue
+                    except OSError:
+                        pass
+                    try:
+                        self._register_session(session_dir)
+                        count += 1
+                    except Exception:
+                        logger.exception(f"Failed to register session {session_dir.name}")
+
+            logger.info(
+                f"Background scan complete: {count} sessions registered, "
+                f"{skipped} old sessions skipped (cutoff: 7 days)"
+            )
+        except Exception:
+            logger.exception("Background scan failed")
 
     def _is_session_dir(self, path: Path) -> bool:
         """Check if path looks like a session directory."""

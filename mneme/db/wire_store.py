@@ -105,7 +105,7 @@ class WireStore:
                     event.input_other,
                     event.output_tokens,
                     event.message_id,
-                    int(event.plan_mode),
+                    int(event.plan_mode or 0),
                 ),
             )
             return cursor.lastrowid or 0
@@ -245,7 +245,11 @@ class WireStore:
         step_number: int | None = None,
         turn_number: int | None = None,
     ) -> int:
-        """Add an observation record compatible with the old schema."""
+        """Add an observation record compatible with the old schema.
+        
+        Skips vector embedding for performance — wire events are indexed
+        in bulk and vector search is secondary for trace data.
+        """
         from mneme.db.store import Observation, ObservationStore
 
         store = ObservationStore(self.db_path)
@@ -259,4 +263,4 @@ class WireStore:
             file_path=file_path,
             prompt=prompt,
         )
-        return store.add_observation(obs)
+        return store.add_observation(obs, skip_vector=True)
