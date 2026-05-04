@@ -228,7 +228,7 @@ class ObservationStore:
             fts_query = query
 
         fts_results: list[dict[str, Any]] = []
-        
+
         # FTS search
         with self._get_conn() as conn:
             try:
@@ -266,21 +266,21 @@ class ObservationStore:
                            o.file_path, o.created_at,
                            SUBSTR(COALESCE(o.tool_output, o.error, o.prompt, o.tool_input, ''), 1, 200) as snippet
                     FROM observations o
-                    WHERE (o.tool_output LIKE ? OR o.error LIKE ? OR o.prompt LIKE ? 
+                    WHERE (o.tool_output LIKE ? OR o.error LIKE ? OR o.prompt LIKE ?
                            OR o.tool_input LIKE ? OR o.tool_name LIKE ? OR o.file_path LIKE ?)
                 """
                 params = [like_pattern] * 6
-                
+
                 if date_from:
                     sql += " AND o.created_at >= ?"
                     params.append(date_from)
                 if date_to:
                     sql += " AND o.created_at <= ?"
                     params.append(date_to)
-                
+
                 sql += " ORDER BY o.created_at DESC LIMIT ?"
                 params.append(limit)
-                
+
                 rows = conn.execute(sql, params).fetchall()
                 fts_results = [dict(row) for row in rows]
 
@@ -296,7 +296,7 @@ class ObservationStore:
                     WHERE s.id LIKE ? OR s.cwd LIKE ? OR s.summary LIKE ?
                     LIMIT ?
                 """, (like_pattern, like_pattern, like_pattern, limit)).fetchall()
-                
+
                 for row in rows:
                     # Check if we already have observations from this session
                     has_obs = any(r.get("session_id") == row["session_id"] for r in fts_results)

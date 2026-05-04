@@ -9,7 +9,6 @@ import pytest
 
 from mneme.core.codebase_analyzer import (
     CodebaseAnalyzer,
-    Symbol,
     _detect_language,
     get_analyzer,
 )

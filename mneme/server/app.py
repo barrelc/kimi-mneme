@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -105,10 +105,8 @@ async def lifespan(app: FastAPI):
     logger.info("kimi-mneme server shutting down")
     worker.stop()
     worker_task.cancel()
-    try:
+    with suppress(asyncio.CancelledError):
         await worker_task
-    except asyncio.CancelledError:
-        pass
     stop_global_watcher()
 
     # Stop MCP server

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 
@@ -25,10 +26,8 @@ def temp_db():
     store.add_session("sess_a", "/home/user/proj")
     yield db_path
     # Windows: connection may still be open, ignore unlink errors
-    try:
+    with contextlib.suppress(PermissionError):
         Path(db_path).unlink(missing_ok=True)
-    except PermissionError:
-        pass
 
 
 class TestStructuredObservationStore:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import struct
+import sqlite3
 import sys
 import threading
 from typing import Any
@@ -361,8 +361,9 @@ class SQLiteVecStore:
     def _check_vec(self) -> bool:
         """Check if sqlite-vec extension is available."""
         try:
-            import sqlite_vec
+            import importlib
 
+            importlib.import_module("sqlite_vec")
             return True
         except ImportError:
             logger.warning(
@@ -483,7 +484,7 @@ class SQLiteVecStore:
                 )
             """,
         }
-        for name, sql in tables.items():
+        for _name, sql in tables.items():
             try:
                 conn.execute(sql)
             except sqlite3.OperationalError as e:

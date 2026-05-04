@@ -9,6 +9,7 @@ falls back to regex-based search.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,10 +35,8 @@ for _lang, _module_name in [
     ("rust", "tree_sitter_rust"),
     ("go", "tree_sitter_go"),
 ]:
-    try:
+    with contextlib.suppress(ImportError):
         _LANGUAGE_MODULES[_lang] = __import__(_module_name)
-    except ImportError:
-        pass
 
 
 @dataclass

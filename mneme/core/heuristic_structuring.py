@@ -106,7 +106,7 @@ class HeuristicStructuring:
             return self._truncate(error, 80)
 
         output = str(obs.get("tool_output", ""))
-        lines = [l.strip() for l in output.split("\n") if l.strip()]
+        lines = [line.strip() for line in output.split("\n") if line.strip()]
         if lines:
             return self._truncate(lines[0], 80)
 
@@ -121,7 +121,7 @@ class HeuristicStructuring:
             facts.append(f"Error: {self._truncate(error, 100)}")
 
         # Extract key lines from output
-        lines = [l.strip() for l in output.split("\n") if l.strip() and not l.startswith(" ")]
+        lines = [line.strip() for line in output.split("\n") if line.strip() and not line.startswith(" ")]
         for line in lines[:3]:
             if len(line) > 10:
                 facts.append(self._truncate(line, 120))

@@ -51,6 +51,8 @@ dev = [
     "ruff>=0.3.0",
     "mypy>=1.9.0",
     "build>=1.1.0",
+    "tree-sitter>=0.25.0",
+    "tree-sitter-python>=0.25.0",
 ]
 
 [project.scripts]

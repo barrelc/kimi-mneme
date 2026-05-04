@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 
@@ -23,10 +24,8 @@ def temp_db():
     store = ObservationStore(db_path=db_path)
     store.add_session("sess_1", "/home/user/myproject")
     yield db_path
-    try:
+    with contextlib.suppress(PermissionError):
         Path(db_path).unlink(missing_ok=True)
-    except PermissionError:
-        pass
 
 
 class TestCollectionsStore:

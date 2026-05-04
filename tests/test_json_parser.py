@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from mneme.core.prompts.json_parser import (
-    ParsedObservation,
     _ensure_list,
     _normalize_type,
     _strip_code_fences,

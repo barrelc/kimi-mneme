@@ -11,8 +11,8 @@ from typing import Any
 from loguru import logger
 
 from mneme.config import load_config
-from mneme.db.schema import get_connection
 from mneme.core.prompts.json_parser import ParsedObservation
+from mneme.db.schema import get_connection
 
 
 class StructuredObservationStore:

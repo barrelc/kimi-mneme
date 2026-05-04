@@ -12,6 +12,7 @@ from pathlib import Path
 
 # Silence loguru to keep stderr clean for Kimi CLI
 from loguru import logger
+
 logger.remove()
 
 # Ensure mneme package is importable — it may be installed via uv tool

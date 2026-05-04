@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
-from mneme.core.ai_provider import HybridProvider, KimiProvider, _load_kimi_token
+from mneme.core.ai_provider import HybridProvider, _load_kimi_token
 from mneme.core.heuristic_structuring import HeuristicStructuring
-from mneme.core.prompts.json_parser import ParsedObservation, parse_observation_json
+from mneme.core.prompts.json_parser import parse_observation_json
 
 
 class TestLoadKimiToken:

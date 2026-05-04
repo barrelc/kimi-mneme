@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 from loguru import logger
 
@@ -92,5 +91,8 @@ class StructuringWorker:
     def _extract_project(cwd: str) -> str:
         """Extract project name from cwd."""
         import os
+        from pathlib import PurePath
 
-        return os.path.basename(cwd.rstrip("/\\")) or cwd
+        # Normalize separators so PurePath works cross-platform
+        normalized = cwd.replace("\\", "/")
+        return PurePath(normalized).name or cwd

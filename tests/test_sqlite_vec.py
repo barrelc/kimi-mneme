@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import json
-import sqlite3
+import contextlib
 import tempfile
 from pathlib import Path
 
 import pytest
 
+from mneme.core.prompts.json_parser import ParsedObservation
 from mneme.db.schema import init_db
 from mneme.db.structured_store import StructuredObservationStore
 from mneme.db.vector import SQLiteVecStore
-from mneme.core.prompts.json_parser import ParsedObservation
 
 
 @pytest.fixture
@@ -37,10 +36,8 @@ def temp_db():
     from mneme.db.vector import SQLiteVecStore
     SQLiteVecStore._singleton_conn = None
     SQLiteVecStore._singleton_db_path = None
-    try:
+    with contextlib.suppress(PermissionError):
         Path(db_path).unlink(missing_ok=True)
-    except PermissionError:
-        pass  # Windows SQLite lock
 
 
 @pytest.fixture
@@ -140,7 +137,7 @@ class TestSQLiteVecStore:
         structured_store = StructuredObservationStore(db_path=temp_db)
 
         # Add to project A
-        obs_a = structured_store.add_structured(
+        structured_store.add_structured(
             obs=sample_observation,
             session_id="sess_a",
             project="project_a",
@@ -148,7 +145,7 @@ class TestSQLiteVecStore:
         )
 
         # Add to project B (different title)
-        obs_b = structured_store.add_structured(
+        structured_store.add_structured(
             obs=ParsedObservation(
                 type="feature",
                 title="Database migration tool",
@@ -175,7 +172,7 @@ class TestSQLiteVecStore:
     def test_search_with_content(self, temp_db, sample_observation):
         """Test search that returns full observation content."""
         structured_store = StructuredObservationStore(db_path=temp_db)
-        obs_id = structured_store.add_structured(
+        structured_store.add_structured(
             obs=sample_observation,
             session_id="sess_test_1",
             project="test_project",
@@ -199,7 +196,7 @@ class TestSQLiteVecStore:
     def test_delete_by_session(self, temp_db, sample_observation):
         """Test deleting vectors by session."""
         structured_store = StructuredObservationStore(db_path=temp_db)
-        obs_id = structured_store.add_structured(
+        structured_store.add_structured(
             obs=sample_observation,
             session_id="sess_delete",
             project="test_project",
@@ -311,7 +308,7 @@ class TestSQLiteVecStore:
             files_read=[],
             files_modified=[],
         )
-        obs_id = structured_store.add_structured(
+        structured_store.add_structured(
             obs=obs,
             session_id="sess_minimal",
             project="test",

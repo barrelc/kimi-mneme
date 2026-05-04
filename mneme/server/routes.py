@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import json
+from collections import deque
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from mneme.db.store import ObservationStore
 from mneme.db.structured_store import StructuredObservationStore
@@ -161,7 +166,7 @@ async def vector_search(
 async def semantic_search(
     q: str = Query(..., description="Semantic search query"),
     project: str | None = Query(None, description="Filter by project"),
-    fields: list[str] | None = Query(None, description="Fields to search: title, narrative, facts"),
+    fields: list[str] | None = Query(None, description="Fields to search: title, narrative, facts"),  # noqa: B008
     limit: int = Query(10, ge=1, le=50),
     days: int | None = Query(None, description="Recency filter: last N days"),
 ) -> dict[str, Any]:
@@ -382,9 +387,6 @@ async def get_structured_stats() -> dict[str, Any]:
 # SSE Stream
 # ---------------------------------------------------------------------------
 
-import asyncio
-from collections import deque
-
 # Global event queue for SSE (max 100 events)
 _sse_events: deque[dict[str, Any]] = deque(maxlen=100)
 _sse_clients: set[asyncio.Queue] = set()
@@ -395,10 +397,8 @@ def broadcast_sse(event_type: str, data: dict[str, Any]) -> None:
     event = {"type": event_type, "data": data, "timestamp": asyncio.get_event_loop().time()}
     _sse_events.append(event)
     for queue in list(_sse_clients):
-        try:
+        with contextlib.suppress(asyncio.QueueFull):
             queue.put_nowait(event)
-        except asyncio.QueueFull:
-            pass
 
 
 @router.get("/stream")
@@ -448,8 +448,6 @@ async def get_queue_status() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Settings (B.3)
 # ---------------------------------------------------------------------------
-
-from pydantic import BaseModel
 
 
 class SettingsPayload(BaseModel):
