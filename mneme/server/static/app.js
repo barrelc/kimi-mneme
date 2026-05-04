@@ -22,11 +22,42 @@ document.addEventListener('DOMContentLoaded', () => {
   initFilters();
   initSearch();
   initAutoRefresh();
+  initWelcomeModal();
   loadStats();
   loadObservations();
   startLogStream();
   connectWebSocket();
+  connectSSE();
+  startQueuePoller();
 });
+
+// Welcome modal
+function initWelcomeModal() {
+  const modal = document.getElementById('welcome-modal');
+  const startBtn = document.getElementById('welcome-start');
+  const dontShow = document.getElementById('welcome-dont-show');
+
+  if (!modal || !startBtn) return;
+
+  // Show if not previously dismissed
+  const dismissed = localStorage.getItem('mneme_welcome_shown');
+  if (!dismissed) {
+    modal.style.display = 'flex';
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (dontShow && dontShow.checked) {
+      localStorage.setItem('mneme_welcome_shown', 'true');
+    }
+    modal.style.display = 'none';
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.style.display = 'none';
+    }
+  });
+}
 
 // WebSocket for real-time wire updates
 function connectWebSocket() {
@@ -73,6 +104,89 @@ function scheduleReconnect() {
     wsReconnectTimer = null;
     connectWebSocket();
   }, 3000);
+}
+
+// SSE for structured observation updates + queue status
+let sseConnection = null;
+
+function connectSSE() {
+  try {
+    const evtSource = new EventSource('/api/stream');
+    sseConnection = evtSource;
+
+    evtSource.addEventListener('connected', (e) => {
+      addLog('info', 'SSE connected — structured updates active');
+    });
+
+    evtSource.addEventListener('structured_update', (e) => {
+      const data = JSON.parse(e.data);
+      addLog('info', `Structured observation #${data.id} added (${data.type})`);
+      // If structured filter is active, refresh
+      if (currentFilter === 'structured') {
+        loadStructuredObservations();
+      }
+      // Update stats
+      loadStats();
+    });
+
+    evtSource.addEventListener('queue_status', (e) => {
+      const data = JSON.parse(e.data);
+      updateQueueIndicator(data);
+    });
+
+    evtSource.onerror = () => {
+      console.error('SSE error, reconnecting...');
+      evtSource.close();
+      setTimeout(connectSSE, 5000);
+    };
+  } catch (e) {
+    console.error('SSE not supported:', e);
+  }
+}
+
+function updateQueueIndicator(data) {
+  const indicator = document.getElementById('processing-indicator');
+  const countEl = document.getElementById('queue-count');
+  const statusDot = document.getElementById('status-dot');
+  const queueStatus = document.getElementById('queue-status');
+
+  const pending = data.pending || 0;
+  const processing = data.processing || 0;
+
+  if (countEl) countEl.textContent = pending + processing;
+  if (queueStatus) queueStatus.textContent = `${pending} pending, ${processing} processing`;
+
+  if (indicator) {
+    indicator.style.display = (pending > 0 || processing > 0) ? 'flex' : 'none';
+  }
+
+  if (statusDot) {
+    if (processing > 0) {
+      statusDot.style.background = '#fbbf24'; // yellow
+      statusDot.title = 'Processing';
+    } else if (pending > 0) {
+      statusDot.style.background = '#fbbf24'; // yellow
+      statusDot.title = 'Pending';
+    } else {
+      statusDot.style.background = '#34d399'; // green
+      statusDot.title = 'Idle';
+    }
+  }
+}
+
+// Poll queue status every 5s as SSE fallback
+function startQueuePoller() {
+  async function poll() {
+    try {
+      const res = await fetch('/api/queue_status');
+      const data = await res.json();
+      updateQueueIndicator(data);
+    } catch (e) {
+      // Ignore
+    }
+  }
+  poll();
+  setInterval(poll, 5000);
 }
 
 function handleWireUpdate(sessionId, counts) {
@@ -208,14 +322,38 @@ async function loadStats() {
 
     document.getElementById('db-size').textContent = `${data.db_size_mb} MB`;
 
-    // Token economics (demo calculations)
-    const loaded = data.total_observations * 50;
-    const invested = data.total_observations * 200;
-    const savings = invested > 0 ? Math.round((1 - loaded / invested) * 100) : 0;
+    // Show structured filter pill if we have structured observations
+    try {
+      const structRes = await fetch(`${API_BASE}/structured_stats`);
+      const structData = await structRes.json();
+      if (structData.total > 0) {
+        document.getElementById('filter-structured').style.display = '';
+      }
+    } catch (e) {
+      // Ignore
+    }
+
+    // Token economics (B.4 — real data from compaction events)
+    const econ = data.token_economics || {};
+    const loaded = econ.tokens_loaded || 0;
+    const invested = econ.tokens_invested || 0;
+    const savings = econ.savings_percent || 0;
+    const compactionCount = econ.compaction_count || 0;
 
     document.getElementById('tokens-loaded').textContent = loaded.toLocaleString();
     document.getElementById('tokens-invested').textContent = invested.toLocaleString();
-    document.getElementById('tokens-savings').textContent = `${savings}%`;
+    const savingsEl = document.getElementById('tokens-savings');
+    savingsEl.textContent = `${savings}%`;
+    savingsEl.className = 'economics-value economics-savings';
+    if (savings >= 50) savingsEl.classList.add('high');
+    else if (savings >= 20) savingsEl.classList.add('mid');
+    else savingsEl.classList.add('low');
+
+    // Update rightbar economics with real data
+    const compressionStatus = document.getElementById('compression-status');
+    if (compressionStatus) {
+      compressionStatus.textContent = compactionCount > 0 ? `${compactionCount} events` : 'No data';
+    }
 
   } catch (err) {
     addLog('error', `Failed to load stats: ${err.message}`);
@@ -244,11 +382,35 @@ function animateValue(id, target) {
   requestAnimationFrame(update);
 }
 
+// Skeleton loader HTML
+function getSkeletonLoader(count = 3) {
+  const cards = Array.from({ length: count }, () => `
+    <div class="skeleton-card">
+      <div class="skeleton-header">
+        <div class="skeleton-badge"></div>
+        <div class="skeleton-meta"></div>
+      </div>
+      <div class="skeleton-title"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line short"></div>
+      <div class="skeleton-footer">
+        <div class="skeleton-action"></div>
+        <div class="skeleton-action"></div>
+      </div>
+    </div>
+  `).join('');
+  return `<div class="skeleton-container">${cards}</div>`;
+}
+
 // Load observations
 async function loadObservations() {
   try {
+    // Show skeleton loader
+    const container = document.getElementById('observations-stream');
+    container.innerHTML = getSkeletonLoader(3);
+
     // Ensure we are in list view, not timeline
-    document.getElementById('observations-stream').style.display = 'block';
+    container.style.display = 'block';
     document.getElementById('timeline-view').style.display = 'none';
 
     // If a type filter is active (not 'all' or 'SessionStart'), load observations directly
@@ -259,6 +421,10 @@ async function loadObservations() {
       }
       if (currentFilter === 'assistant') {
         await loadAssistantMessages();
+        return;
+      }
+      if (currentFilter === 'structured') {
+        await loadStructuredObservations();
         return;
       }
       await loadFilteredObservations();
@@ -337,9 +503,46 @@ function formatFilterName(filter) {
     'PostToolUseFailure': 'error',
     'SessionStart': 'session',
     'thinking': 'thinking',
-    'assistant': 'assistant'
+    'assistant': 'assistant',
+    'structured': 'structured'
   };
   return names[filter] || filter;
+}
+
+// Load structured observations
+async function loadStructuredObservations() {
+  try {
+    const container = document.getElementById('observations-stream');
+    container.innerHTML = getSkeletonLoader(3);
+    container.style.display = 'block';
+    document.getElementById('timeline-view').style.display = 'none';
+
+    const params = new URLSearchParams();
+    params.append('limit', '50');
+    if (currentProject && currentProject !== 'all') {
+      params.append('project', currentProject);
+    }
+
+    const res = await fetch(`${API_BASE}/structured_observations?${params.toString()}`);
+    const data = await res.json();
+
+    const container = document.getElementById('observations-stream');
+
+    if (!data.observations || data.observations.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 4rem; color: var(--text-dim);">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">📚</div>
+          <p>No structured observations yet. They appear after background AI processing.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = data.observations.map(o => renderStructuredCard(o)).join('');
+
+  } catch (err) {
+    addLog('error', `Failed to load structured observations: ${err.message}`);
+  }
 }
 
 // Load thinking blocks
@@ -426,13 +629,26 @@ async function loadAssistantMessages() {
 // Search observations
 async function searchObservations(query) {
   try {
-    const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}&limit=20`);
-    const data = await res.json();
+    // Try structured search first, fallback to regular search
+    let results = [];
+    try {
+      const structuredRes = await fetch(`${API_BASE}/structured_search?q=${encodeURIComponent(query)}&limit=20`);
+      const structuredData = await structuredRes.json();
+      results = structuredData.results || [];
+    } catch (e) {
+      // Fallback to regular search
+    }
+
+    // If no structured results, try regular search
+    if (results.length === 0) {
+      const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}&limit=20`);
+      const data = await res.json();
+      results = data.results || [];
+    }
 
     const container = document.getElementById('observations-stream');
 
     // Apply type filter to search results if active
-    let results = data.results || [];
     if (currentFilter && currentFilter !== 'all' && currentFilter !== 'SessionStart') {
       results = results.filter(r => (r.event_type || r.type) === currentFilter);
     }
@@ -447,7 +663,9 @@ async function searchObservations(query) {
       return;
     }
 
-    container.innerHTML = results.map(r => renderObservationCard(r)).join('');
+    // Render structured cards if results have 'type' field (structured), else regular
+    const isStructured = results.length > 0 && results[0].hasOwnProperty('facts');
+    container.innerHTML = results.map(r => isStructured ? renderStructuredCard(r) : renderObservationCard(r)).join('');
 
   } catch (err) {
     addLog('error', `Search failed: ${err.message}`);
@@ -517,8 +735,98 @@ function getBadgeClass(eventType) {
   return 'badge-tool';
 }
 
+// Render structured observation card
+function estimateTokens(text) {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
+function renderStructuredCard(obs, expanded = false) {
+  const typeEmoji = {
+    'bugfix': '🐛', 'feature': '✨', 'refactor': '♻️',
+    'change': '📝', 'discovery': '🔍', 'decision': '🎯'
+  }[obs.type] || '•';
+
+  const sourceEmoji = {'ai': '🤖', 'heuristic': '⚡', 'manual': '✋'}[obs.source] || '•';
+  const date = formatDate(obs.created_at);
+
+  // Token economics estimate
+  const contentText = [
+    obs.title || '',
+    obs.subtitle || '',
+    obs.narrative || '',
+    ...(obs.facts || []),
+  ].join(' ');
+  const tokenCount = estimateTokens(contentText);
+
+  const factsHtml = (obs.facts || []).slice(0, 3).map(f =>
+    `<li style="margin: 0.25rem 0; color: var(--text-secondary);">• ${escapeHtml(f)}</li>`
+  ).join('');
+
+  const filesHtml = (obs.files_modified || []).concat(obs.files_read || []).slice(0, 3).map(f =>
+    `<code style="font-size: 0.75rem; margin-right: 0.5rem;">${escapeHtml(f)}</code>`
+  ).join('');
+
+  const compactClass = expanded ? '' : 'card-compact';
+  const toggleIcon = expanded ? '▼' : '▶';
+
+  return `
+    <div class="observation-card ${compactClass}" data-obs-id="${obs.id}" style="border-left: 3px solid #f59e0b;">
+      <div class="card-header">
+        <div class="card-badges">
+          <span class="badge-pill" style="background: rgba(245,158,11,0.2); color: #f59e0b;">${typeEmoji} ${obs.type}</span>
+          <span class="badge-pill badge-tool">${sourceEmoji} ${obs.source}</span>
+          <span class="token-badge" title="Estimated tokens to read this observation">~${tokenCount}t</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span class="card-toggle" onclick="toggleCard(${obs.id})" title="${expanded ? 'Collapse' : 'Expand'}">${toggleIcon}</span>
+          <span class="card-meta">#${obs.id} · ${date}</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p style="font-weight: 600; font-size: 1.05rem; margin-bottom: 0.5rem;">${escapeHtml(obs.title)}</p>
+        <div class="card-body-details">
+          ${obs.subtitle ? `<p style="color: var(--text-secondary); font-style: italic; margin-bottom: 0.5rem;">${escapeHtml(obs.subtitle)}</p>` : ''}
+          ${obs.narrative ? `<p style="color: var(--text-secondary); margin-bottom: 0.5rem;">${escapeHtml(obs.narrative)}</p>` : ''}
+          ${factsHtml ? `<ul style="list-style: none; padding: 0; margin: 0.5rem 0;">${factsHtml}</ul>` : ''}
+          ${filesHtml ? `<div style="margin-top: 0.5rem;">${filesHtml}</div>` : ''}
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="card-action" onclick="viewStructured(${obs.id})">👁 View</span>
+        <span class="card-action" onclick="copyId(${obs.id})">📋 Copy ID</span>
+      </div>
+    </div>
+  `;
+}
+
+function toggleCard(obsId) {
+  const card = document.querySelector(`.observation-card[data-obs-id="${obsId}"]`);
+  if (!card) return;
+  const isCompact = card.classList.contains('card-compact');
+  if (isCompact) {
+    card.classList.remove('card-compact');
+    const toggle = card.querySelector('.card-toggle');
+    if (toggle) { toggle.textContent = '▼'; toggle.title = 'Collapse'; }
+  } else {
+    card.classList.add('card-compact');
+    const toggle = card.querySelector('.card-toggle');
+    if (toggle) { toggle.textContent = '▶'; toggle.title = 'Expand'; }
+  }
+}
+
+function viewStructured(id) {
+  addLog('info', `Viewing structured observation #${id}`);
+}
+
+// Log drawer state
+let logDrawerPaused = false;
+let logDrawerFilter = 'all';
+let logDrawerEntries = [];
+
 // Log stream
 function startLogStream() {
+  initLogDrawer();
   addLog('info', 'kimi-mneme initialized');
   addLog('hook', 'SessionStart hook registered');
   addLog('info', 'Plugin tools loaded: mneme_search, mneme_timeline, mneme_get');
@@ -541,27 +849,141 @@ function startLogStream() {
   }, 5000);
 }
 
+function initLogDrawer() {
+  const drawer = document.getElementById('log-drawer');
+  const header = drawer.querySelector('.log-drawer-header');
+  const resize = document.getElementById('log-drawer-resize');
+  const pauseBtn = document.getElementById('log-pause');
+  const clearBtn = document.getElementById('log-clear');
+  const sizeBtn = document.getElementById('log-toggle-size');
+
+  // Toggle collapse on header click
+  header.addEventListener('click', (e) => {
+    if (e.target.closest('.log-drawer-controls')) return;
+    drawer.classList.toggle('collapsed');
+  });
+
+  // Filters
+  drawer.querySelectorAll('.log-drawer-filter').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      drawer.querySelectorAll('.log-drawer-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      logDrawerFilter = btn.dataset.filter;
+      renderLogDrawer();
+    });
+  });
+
+  // Pause
+  pauseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    logDrawerPaused = !logDrawerPaused;
+    pauseBtn.textContent = logDrawerPaused ? '▶' : '⏸';
+    pauseBtn.title = logDrawerPaused ? 'Resume' : 'Pause';
+  });
+
+  // Clear
+  clearBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    logDrawerEntries = [];
+    renderLogDrawer();
+    logEntries = [];
+  });
+
+  // Expand/collapse size
+  sizeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    drawer.classList.toggle('expanded');
+    sizeBtn.textContent = drawer.classList.contains('expanded') ? '▼' : '▲';
+    sizeBtn.title = drawer.classList.contains('expanded') ? 'Collapse' : 'Expand';
+  });
+
+  // Resize handle
+  let resizing = false;
+  let startY, startHeight;
+  resize.addEventListener('mousedown', (e) => {
+    resizing = true;
+    startY = e.clientY;
+    startHeight = drawer.offsetHeight;
+    document.body.style.cursor = 'ns-resize';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!resizing) return;
+    const newHeight = startHeight - (e.clientY - startY);
+    if (newHeight > 100 && newHeight < window.innerHeight * 0.7) {
+      drawer.style.height = `${newHeight}px`;
+      drawer.classList.remove('collapsed');
+    }
+  });
+  document.addEventListener('mouseup', () => {
+    resizing = false;
+    document.body.style.cursor = '';
+  });
+
+  // Keyboard shortcut Ctrl+~ to toggle
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+      e.preventDefault();
+      drawer.classList.toggle('collapsed');
+    }
+  });
+}
+
+function renderLogDrawer() {
+  const body = document.getElementById('log-drawer-body');
+  const countEl = document.getElementById('log-drawer-count');
+
+  const filtered = logDrawerFilter === 'all'
+    ? logDrawerEntries
+    : logDrawerEntries.filter(e => e.level === logDrawerFilter);
+
+  body.innerHTML = filtered.slice(-200).map(e => `
+    <div class="log-entry">
+      <span class="log-time">${e.time}</span>
+      <span class="log-level log-level-${e.level}">${e.level.toUpperCase()}</span>
+      <span class="log-message">${escapeHtml(e.message)}</span>
+    </div>
+  `).join('');
+
+  if (countEl) countEl.textContent = filtered.length;
+
+  // Auto-scroll to bottom
+  body.scrollTop = body.scrollHeight;
+}
+
 function addLog(level, message) {
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  // Add to legacy rightbar log
   const stream = document.getElementById('log-stream');
-  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+  if (stream) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `
+      <span class="log-time">${time}</span>
+      <span class="log-level log-level-${level}">${level.toUpperCase()}</span>
+      <span class="log-message">${escapeHtml(message)}</span>
+    `;
+    stream.insertBefore(entry, stream.firstChild);
+    while (stream.children.length > 100) {
+      stream.removeChild(stream.lastChild);
+    }
+  }
 
-  const entry = document.createElement('div');
-  entry.className = 'log-entry';
-  entry.innerHTML = `
-    <span class="log-time">${time}</span>
-    <span class="log-level log-level-${level}">${level.toUpperCase()}</span>
-    <span class="log-message">${escapeHtml(message)}</span>
-  `;
-
-  stream.insertBefore(entry, stream.firstChild);
-
-  // Keep only last 100 entries
-  while (stream.children.length > 100) {
-    stream.removeChild(stream.lastChild);
+  // Add to drawer
+  if (!logDrawerPaused) {
+    logDrawerEntries.push({ level, message, time });
+    // Keep last 500
+    if (logDrawerEntries.length > 500) {
+      logDrawerEntries = logDrawerEntries.slice(-500);
+    }
+    renderLogDrawer();
   }
 
   logEntries.push({ level, message, time });
-  document.getElementById('log-count').textContent = `${logEntries.length} entries`;
+  const countEl = document.getElementById('log-count');
+  if (countEl) countEl.textContent = `${logEntries.length} entries`;
 }
 
 // Utilities
@@ -1164,3 +1586,145 @@ setInterval(() => {
     loadStats();
   }
 }, 10000);
+
+// ============================================================
+// SETTINGS MODAL (B.3)
+// ============================================================
+
+const SETTINGS_DEFAULTS = {
+  structuring: true,
+  injection: true,
+  vector: true,
+  projectmd: true,
+  strip_system: true,
+  redact_sensitive: true,
+  compact_cards: false,
+};
+
+let settings = { ...SETTINGS_DEFAULTS };
+
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('mneme_settings');
+    if (saved) {
+      settings = { ...SETTINGS_DEFAULTS, ...JSON.parse(saved) };
+    }
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+  }
+  applySettingsUI();
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem('mneme_settings', JSON.stringify(settings));
+  } catch (e) {
+    console.error('Failed to save settings:', e);
+  }
+}
+
+function applySettingsUI() {
+  const toggles = {
+    'setting-structuring-toggle': 'structuring',
+    'setting-injection-toggle': 'injection',
+    'setting-vector-toggle': 'vector',
+    'setting-projectmd-toggle': 'projectmd',
+    'setting-strip-system-toggle': 'strip_system',
+    'setting-redact-toggle': 'redact_sensitive',
+    'setting-compact-toggle': 'compact_cards',
+  };
+
+  for (const [id, key] of Object.entries(toggles)) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.toggle('active', settings[key]);
+    }
+  }
+
+  document.body.classList.toggle('compact-mode', settings.compact_cards);
+}
+
+function initSettingsModal() {
+  const modal = document.getElementById('settings-modal');
+  const btn = document.getElementById('settings-btn');
+  const closeBtn = document.getElementById('settings-modal-close');
+  const cancelBtn = document.getElementById('settings-cancel');
+  const saveBtn = document.getElementById('settings-save');
+
+  btn.addEventListener('click', () => {
+    loadSettings();
+    modal.style.display = 'flex';
+  });
+
+  const closeModal = () => { modal.style.display = 'none'; };
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') {
+      closeModal();
+    }
+  });
+
+  const toggles = {
+    'setting-structuring-toggle': 'structuring',
+    'setting-injection-toggle': 'injection',
+    'setting-vector-toggle': 'vector',
+    'setting-projectmd-toggle': 'projectmd',
+    'setting-strip-system-toggle': 'strip_system',
+    'setting-redact-toggle': 'redact_sensitive',
+    'setting-compact-toggle': 'compact_cards',
+  };
+
+  for (const [id, key] of Object.entries(toggles)) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('click', () => {
+        settings[key] = !settings[key];
+        el.classList.toggle('active', settings[key]);
+      });
+    }
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    saveSettings();
+    try {
+      await fetch(`${API_BASE}/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      addLog('info', 'Settings saved');
+    } catch (e) {
+      addLog('warn', 'Settings saved locally only');
+    }
+    closeModal();
+  });
+}
+
+const compactStyles = document.createElement('style');
+compactStyles.textContent = `
+  .compact-mode .observation-card {
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+  }
+  .compact-mode .card-body {
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  .compact-mode .card-header {
+    margin-bottom: 0.4rem;
+  }
+  .compact-mode .card-footer {
+    margin-top: 0.4rem;
+    padding-top: 0.4rem;
+  }
+`;
+document.head.appendChild(compactStyles);
+
+loadSettings();
+initSettingsModal();

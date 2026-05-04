@@ -8,7 +8,7 @@ from typing import Any
 from loguru import logger
 
 from mneme.core.sanitize import clean_observation, extract_file_path
-from mneme.db.store import Observation, ObservationStore
+from mneme.db.store import Observation, ObservationStore, PendingMessage
 
 
 class Extractor:
@@ -41,10 +41,10 @@ class Extractor:
         summarizer = FastSummarizer(store=self.store)
         brief = summarizer.get_project_brief(cwd, max_sessions=1, current_session_id=session_id)
 
-        # 2. Full context injection — vector search disabled by default for speed
+        # 2. Full context injection — semantic search via sqlite-vec (B.5)
         from mneme.core.injector import Injector
 
-        injector = Injector(store=self.store, use_vector=False)
+        injector = Injector(store=self.store, use_vector=True)
         context = injector.get_context(cwd, current_session_id=session_id)
 
         parts = []
@@ -282,6 +282,19 @@ class Extractor:
         )
 
         obs_id = self.store.add_observation(observation)
+
+        # Queue for background AI structuring
+        if obs_id:
+            self.store.add_pending_message(
+                PendingMessage(
+                    session_id=session_id,
+                    message_type="observation",
+                    tool_name=tool_name,
+                    tool_input=tool_input_str,
+                    tool_response=cleaned_output if success else None,
+                    error=cleaned_error if not success else None,
+                )
+            )
 
         # Record truncation if applicable
         if success and original_size > 100000 and obs_id:

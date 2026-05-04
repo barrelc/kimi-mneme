@@ -397,6 +397,141 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX idx_session_stats_timestamp ON session_stats(timestamp);
         """,
     ),
+    (
+        15,
+        """
+        -- Structured observations (AI-generated via Kimi API)
+        CREATE TABLE IF NOT EXISTS structured_observations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            project TEXT NOT NULL,
+            type TEXT NOT NULL
+                CHECK(type IN ('bugfix', 'feature', 'refactor', 'change', 'discovery', 'decision')),
+            title TEXT NOT NULL,
+            subtitle TEXT,
+            facts TEXT,
+            narrative TEXT,
+            concepts TEXT,
+            files_read TEXT,
+            files_modified TEXT,
+            content_hash TEXT NOT NULL,
+            discovery_tokens INTEGER DEFAULT 0,
+            raw_observation_id INTEGER,
+            source TEXT DEFAULT 'ai'
+                CHECK(source IN ('ai', 'heuristic', 'manual')),
+            model TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+            FOREIGN KEY (raw_observation_id) REFERENCES observations(id) ON DELETE SET NULL,
+            UNIQUE(session_id, content_hash)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_structured_session ON structured_observations(session_id);
+        CREATE INDEX IF NOT EXISTS idx_structured_project ON structured_observations(project);
+        CREATE INDEX IF NOT EXISTS idx_structured_type ON structured_observations(type);
+        CREATE INDEX IF NOT EXISTS idx_structured_created ON structured_observations(created_at);
+        CREATE INDEX IF NOT EXISTS idx_structured_source ON structured_observations(source);
+
+        -- FTS5 на structured_observations
+        CREATE VIRTUAL TABLE IF NOT EXISTS structured_observations_fts USING fts5(
+            title,
+            subtitle,
+            narrative,
+            facts,
+            concepts,
+            content='structured_observations',
+            content_rowid='id'
+        );
+
+        -- Triggers для FTS5 sync
+        CREATE TRIGGER IF NOT EXISTS structured_fts_insert
+        AFTER INSERT ON structured_observations BEGIN
+            INSERT INTO structured_observations_fts(rowid, title, subtitle, narrative, facts, concepts)
+            VALUES (new.id, new.title, new.subtitle, new.narrative, new.facts, new.concepts);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS structured_fts_delete
+        AFTER DELETE ON structured_observations BEGIN
+            INSERT INTO structured_observations_fts(structured_observations_fts, rowid, title, subtitle, narrative, facts, concepts)
+            VALUES ('delete', old.id, old.title, old.subtitle, old.narrative, old.facts, old.concepts);
+        END;
+        """,
+    ),
+    (
+        16,
+        """
+        -- sqlite-vec virtual tables for semantic search (replaces ChromaDB on Windows)
+        -- Note: vec0 tables are created lazily by SQLiteVecStore when extension is loaded
+        CREATE TABLE IF NOT EXISTS vec_sync_state (
+            table_name TEXT PRIMARY KEY,
+            last_synced_id INTEGER DEFAULT 0,
+            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        INSERT OR IGNORE INTO vec_sync_state (table_name, last_synced_id) VALUES ('structured_observations', 0);
+        """,
+    ),
+    (
+        17,
+        """
+        -- Soft deduplication links (B.2 Dedup v2)
+        -- When a structured observation is deduplicated (same content_hash),
+        -- instead of silently dropping it, we create a link to the existing observation.
+        -- This preserves the relationship between different raw_observation_ids
+        -- and allows tracing all observations that produced the same structured insight.
+        CREATE TABLE IF NOT EXISTS structured_observation_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            existing_structured_id INTEGER NOT NULL,
+            linked_raw_observation_id INTEGER,
+            linked_session_id TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            link_type TEXT NOT NULL DEFAULT 'dedup'
+                CHECK(link_type IN ('dedup', 'related', 'similar')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (existing_structured_id) REFERENCES structured_observations(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_structured_links_existing ON structured_observation_links(existing_structured_id);
+        CREATE INDEX IF NOT EXISTS idx_structured_links_hash ON structured_observation_links(content_hash);
+        CREATE INDEX IF NOT EXISTS idx_structured_links_session ON structured_observation_links(linked_session_id);
+        """,
+    ),
+    (
+        18,
+        """
+        -- Knowledge Collections (thematic groupings of observations)
+        -- Позволяет создавать тематические подборки structured observations
+        -- и экспортировать их в markdown.
+        CREATE TABLE IF NOT EXISTS observation_collections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            project TEXT,
+            query TEXT,              -- FTS query или пусто (ручная подборка)
+            types TEXT,              -- JSON ["decision", "bugfix"]
+            concepts TEXT,           -- JSON ["architecture"]
+            files TEXT,              -- JSON ["src/api/"]
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_collections_project ON observation_collections(project);
+        CREATE INDEX IF NOT EXISTS idx_collections_name ON observation_collections(name);
+
+        -- Many-to-many: collections <-> structured_observations
+        CREATE TABLE IF NOT EXISTS collection_items (
+            collection_id INTEGER NOT NULL,
+            structured_id INTEGER NOT NULL,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (collection_id) REFERENCES observation_collections(id) ON DELETE CASCADE,
+            FOREIGN KEY (structured_id) REFERENCES structured_observations(id) ON DELETE CASCADE,
+            UNIQUE(collection_id, structured_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_collection_items_collection ON collection_items(collection_id);
+        CREATE INDEX IF NOT EXISTS idx_collection_items_structured ON collection_items(structured_id);
+        """,
+    ),
 ]
 
 

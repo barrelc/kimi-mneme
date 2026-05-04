@@ -23,6 +23,12 @@
       </div>
 
       <div class="header-controls">
+        <div id="processing-indicator" style="display: none; align-items: center; gap: 0.5rem; margin-right: 1rem;">
+          <span class="spinner" style="width: 14px; height: 14px; border: 2px solid var(--text-dim); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; display: inline-block;"></span>
+          <span style="font-size: 0.75rem; color: var(--text-secondary);" id="queue-count">0</span>
+        </div>
+        <div id="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #34d399; margin-right: 0.5rem;" title="Idle"></div>
+        <button class="settings-btn" id="settings-btn" title="Settings">⚙️</button>
         <label class="toggle active" id="auto-refresh-toggle">
           <div class="toggle-switch"></div>
           <span style="font-size: 0.8rem; color: var(--text-secondary);">Live</span>
@@ -107,6 +113,10 @@
           <span class="dot" style="background: #38bdf8;"></span>
           Assistant
         </button>
+        <button class="filter-pill" data-filter="structured" id="filter-structured" style="display:none;">
+          <span class="dot" style="background: #f59e0b;"></span>
+          Structured
+        </button>
       </div>
 
       <div id="observations-stream">
@@ -151,10 +161,157 @@
           <span class="economics-label">Compression</span>
           <span class="economics-value" id="compression-status">Active</span>
         </div>
+        <div class="economics-row">
+          <span class="economics-label">Queue</span>
+          <span class="economics-value" id="queue-status">0 pending</span>
+        </div>
+        <div class="economics-row">
+          <span class="economics-label">Structured</span>
+          <span class="economics-value" id="structured-count">0</span>
+        </div>
       </div>
     </aside>
   </div>
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 
-  <script src="/static/app.js?v=8"></script>
+  <!-- Welcome Modal -->
+  <div class="modal-overlay" id="welcome-modal" style="display: none;">
+    <div class="modal welcome-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">🧠 Welcome to kimi-mneme</h3>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
+          Your persistent memory for Kimi Code CLI. Here's what you can do:
+        </p>
+        <div class="welcome-grid">
+          <div class="welcome-feature">
+            <div class="welcome-feature-icon">🧠</div>
+            <div class="welcome-feature-title">Memory</div>
+            <div class="welcome-feature-desc">Every session, tool use, and decision is automatically captured and structured.</div>
+          </div>
+          <div class="welcome-feature">
+            <div class="welcome-feature-icon">🔍</div>
+            <div class="welcome-feature-title">Search</div>
+            <div class="welcome-feature-desc">Full-text and semantic search across all your past work.</div>
+          </div>
+          <div class="welcome-feature">
+            <div class="welcome-feature-icon">📊</div>
+            <div class="welcome-feature-title">Collections</div>
+            <div class="welcome-feature-desc">Curate knowledge collections for projects, patterns, and decisions.</div>
+          </div>
+          <div class="welcome-feature">
+            <div class="welcome-feature-icon">🔌</div>
+            <div class="welcome-feature-title">MCP</div>
+            <div class="welcome-feature-desc">Access memory from any MCP-compatible editor or agent.</div>
+          </div>
+        </div>
+        <label class="welcome-checkbox">
+          <input type="checkbox" id="welcome-dont-show">
+          <span>Don't show this again</span>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-primary" id="welcome-start">Get Started</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Drawer -->
+  <div id="log-drawer" class="log-drawer collapsed">
+    <div class="log-drawer-header">
+      <div class="log-drawer-title">
+        <span>Console</span>
+        <span class="log-drawer-count" id="log-drawer-count">0</span>
+      </div>
+      <div class="log-drawer-controls">
+        <button class="log-drawer-filter active" data-filter="all">All</button>
+        <button class="log-drawer-filter" data-filter="info">Info</button>
+        <button class="log-drawer-filter" data-filter="warn">Warn</button>
+        <button class="log-drawer-filter" data-filter="error">Error</button>
+        <button class="log-drawer-filter" data-filter="hook">Hook</button>
+        <button class="log-drawer-btn" id="log-pause" title="Pause">⏸</button>
+        <button class="log-drawer-btn" id="log-clear" title="Clear">🗑</button>
+        <button class="log-drawer-btn" id="log-toggle-size" title="Expand">▲</button>
+      </div>
+    </div>
+    <div class="log-drawer-body" id="log-drawer-body">
+      <!-- Logs go here -->
+    </div>
+    <div class="log-drawer-resize" id="log-drawer-resize"></div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settings-modal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Settings</h3>
+        <button class="modal-close" id="settings-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <div class="settings-section-title">Memory Features</div>
+          <label class="settings-row">
+            <span class="settings-label">AI Structuring</span>
+            <div class="toggle" id="setting-structuring-toggle">
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+          <label class="settings-row">
+            <span class="settings-label">Context Injection</span>
+            <div class="toggle" id="setting-injection-toggle">
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+          <label class="settings-row">
+            <span class="settings-label">Vector Search</span>
+            <div class="toggle" id="setting-vector-toggle">
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+          <label class="settings-row">
+            <span class="settings-label">PROJECT.md Generation</span>
+            <div class="toggle" id="setting-projectmd-toggle">
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Privacy</div>
+          <label class="settings-row">
+            <span class="settings-label">Strip System Content</span>
+            <div class="toggle" id="setting-strip-system-toggle">
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+          <label class="settings-row">
+            <span class="settings-label">Redact Sensitive Data</span>
+            <div class="toggle" id="setting-redact-toggle">
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Appearance</div>
+          <label class="settings-row">
+            <span class="settings-label">Compact Cards</span>
+            <div class="toggle" id="setting-compact-toggle">
+              <div class="toggle-switch"></div>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-secondary" id="settings-cancel">Cancel</button>
+        <button class="modal-btn modal-btn-primary" id="settings-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>

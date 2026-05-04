@@ -4,14 +4,19 @@ kimi-mneme includes a web-based memory viewer at `http://localhost:37777`.
 
 ## Features
 
-- **Real-time stream** — See observations as they happen
-- **Search interface** — Full-text and semantic search
+- **Real-time stream** — See observations as they happen via SSE
+- **Search interface** — Full-text (FTS5) and semantic (sqlite-vec) search with recency filter
 - **Session browser** — Explore past sessions chronologically
 - **Timeline view** — See context around any observation
-- **Statistics** — Memory usage, session counts, top projects
+- **Statistics** — Memory usage, session counts, top projects, token economics
 - **Checkpoints** — View session checkpoints and resume context
 - **Patterns** — Browse detected cross-session patterns
 - **Compaction history** — Track context compaction events
+- **Skeleton loaders** — Shimmer animation while loading
+- **Token economics** — `~Nt` badge per observation, savings % indicator
+- **Per-card expand/collapse** — Toggle between compact and full view
+- **Console drawer** — DevTools-style log panel with filters (All/Info/Warn/Error/Hook)
+- **Welcome modal** — First-run feature highlights
 
 ## Starting the Server
 
@@ -121,6 +126,23 @@ GET /api/stats
 
 ```bash
 GET /api/vector_search?q=authentication+middleware&limit=10
+GET /api/vector_search?q=auth&limit=10&days=30  # last 30 days only
+```
+
+### Collections
+
+```bash
+# List collections
+GET /api/collections
+
+# Get collection details
+GET /api/collections/my-collection
+
+# Query collection with natural language
+GET /api/collections/my-collection/query?q=How+do+we+handle+auth
+
+# Export collection
+GET /api/collections/my-collection/export?format=md
 ```
 
 ### Projects

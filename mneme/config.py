@@ -23,12 +23,21 @@ DEFAULT_CONFIG = {
     },
     "compression": {
         "enabled": True,
-        "provider": "moonshot",
-        "model": "moonshot-v1-8k",
-        "api_key": "${MOONSHOT_API_KEY}",
+        "provider": "kimi",
+        "model": "kimi-k2.5",
         "batch_size": 10,
         "min_observations": 5,
         "trigger": "session_end",
+    },
+    "structuring": {
+        "enabled": True,
+        "ai_provider": "kimi",
+        "ai_model": "kimi-k2.5",
+        "fallback_to_heuristic": True,
+        "heuristic_threshold_chars": 300,
+        "batch_size": 5,
+        "worker_interval_seconds": 5,
+        "max_retry_count": 3,
     },
     "injection": {
         "enabled": True,
@@ -48,6 +57,12 @@ DEFAULT_CONFIG = {
         "auth_token": None,
         # Event loop: "auto" | "asyncio" | "winloop" (Windows only)
         "loop": "auto",
+    },
+    "mcp": {
+        "enabled": True,
+        "auto_start": False,  # Set to True to start MCP with FastAPI
+        "transport": "stdio",  # "stdio" | "sse"
+        "port": 37778,
     },
     "privacy": {
         "exclude_tags": ["<private>", "<secret>"],
@@ -160,7 +175,8 @@ def _apply_env_overrides(config: dict[str, Any]) -> dict[str, Any]:
         "MNEME_SERVER_PORT": ("server", "port"),
         "MNEME_SERVER_HOST": ("server", "host"),
         "MNEME_LOG_LEVEL": ("logging", "level"),
-        "MOONSHOT_API_KEY": ("compression", "api_key"),
+        "MNEME_STRUCTURING_ENABLED": ("structuring", "enabled"),
+        "MNEME_AI_MODEL": ("structuring", "ai_model"),
     }
 
     for env_var, (section, key) in env_map.items():
@@ -170,6 +186,20 @@ def _apply_env_overrides(config: dict[str, Any]) -> dict[str, Any]:
             config[section][key] = os.environ[env_var]
 
     return config
+
+
+def save_config(config: dict[str, Any]) -> None:
+    """Save configuration to file."""
+    config_path = get_config_path()
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Don't save internal keys
+    clean = {k: v for k, v in config.items() if not k.startswith("_")}
+
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(clean, f, indent=2, ensure_ascii=False)
+
+    logger.info(f"Config saved to {config_path}")
 
 
 def ensure_dirs(config: dict[str, Any]) -> None:

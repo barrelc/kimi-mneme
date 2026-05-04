@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 from loguru import logger
 
-from mneme.config import load_config
+from mneme.core.ai_provider import _load_kimi_token
 
 COMPRESSION_PROMPT = """You are a coding session summarizer. Your task is to create a concise,
 semantic summary of the following coding session observations.
@@ -28,15 +28,13 @@ Summary:"""
 
 
 class Compressor:
-    """Compress observations into semantic summaries using LLM."""
+    """Compress observations into semantic summaries using Kimi API."""
 
     def __init__(self) -> None:
-        config = load_config()
-        self.enabled = config["compression"]["enabled"]
-        self.provider = config["compression"]["provider"]
-        self.model = config["compression"]["model"]
-        self.api_key = config["compression"]["api_key"]
-        self.batch_size = config["compression"]["batch_size"]
+        self.token = _load_kimi_token()
+        self.enabled = bool(self.token)
+        self.model = "kimi-k2.5"
+        self.batch_size = 50
 
     def _format_observations(self, observations: list[dict[str, Any]]) -> str:
         """Format observations for the LLM prompt."""
@@ -72,10 +70,6 @@ class Compressor:
         if not self.enabled:
             return None
 
-        if not self.api_key:
-            logger.warning("Compression enabled but no API key configured")
-            return None
-
         if len(observations) < 5:
             logger.debug("Too few observations to compress")
             return None
@@ -84,44 +78,30 @@ class Compressor:
             formatted = self._format_observations(observations)
             prompt = COMPRESSION_PROMPT.format(observations=formatted)
 
-            if self.provider == "moonshot":
-                return await self._compress_moonshot(prompt)
-            else:
-                logger.warning(f"Unknown compression provider: {self.provider}")
-                return None
-
-        except Exception as e:
-            logger.error(f"Compression failed: {e}")
-            return None
-
-    async def _compress_moonshot(self, prompt: str) -> dict[str, Any] | None:
-        """Call Moonshot API for compression."""
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://api.moonshot.cn/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are a helpful coding session summarizer.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.3,
-                    "max_tokens": 1000,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    "https://api.kimi.com/coding/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a helpful coding session summarizer.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": 0.3,
+                        "max_tokens": 1000,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
 
             summary = data["choices"][0]["message"]["content"]
-
-            # Extract keywords (simple approach)
             keywords = self._extract_keywords(summary)
 
             return {
@@ -129,9 +109,12 @@ class Compressor:
                 "keywords": keywords,
             }
 
+        except Exception as e:
+            logger.error(f"Compression failed: {e}")
+            return None
+
     def _extract_keywords(self, text: str) -> list[str]:
         """Extract keywords from summary using simple heuristics."""
-        # Look for code-like terms, file paths, and technical terms
         import re
 
         # File paths

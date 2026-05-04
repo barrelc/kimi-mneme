@@ -1,6 +1,54 @@
-# Plugin Tools
+# Tools Reference
 
-kimi-mneme provides 3 AI-callable tools through Kimi CLI's plugin system.
+kimi-mneme provides tools through three interfaces:
+
+1. **Kimi CLI Plugin** (3 tools) — `mneme_search`, `mneme_timeline`, `mneme_get`
+2. **MCP Server** (15 tools) — For Claude Desktop, Cursor, Goose, etc.
+3. **Web UI** — Interactive viewer at `http://localhost:37777`
+
+## MCP Tools Overview
+
+| Tool | Category | Purpose |
+|------|----------|---------|
+| `memory_search` | Search | FTS5 full-text search |
+| `memory_semantic_search` | Search | sqlite-vec semantic search (with optional `days` recency filter) |
+| `memory_recall` | Detail | Get full observation by ID |
+| `memory_timeline` | Context | Chronological observations for a session |
+| `memory_stats` | Context | Memory statistics |
+| `memory_by_concept` | Search | Filter by concept tag |
+| `memory_by_file` | Search | Find observations related to a file |
+| `memory_workflow` | Guide | **How to use memory effectively** — 3-step workflow |
+| `smart_search` | Codebase | Tree-sitter AST symbol search |
+| `smart_outline` | Codebase | File structural outline |
+| `smart_unfold` | Codebase | Symbol body extraction |
+| `memory_build_collection` | Collections | Create knowledge collection |
+| `memory_list_collections` | Collections | List all collections |
+| `memory_export_collection` | Collections | Export as md/json/plain |
+| `memory_query_collection` | Collections | **Semantic Q&A over a collection** |
+
+### Progressive Disclosure Workflow
+
+To minimize token usage, always follow this 3-layer pattern:
+
+```
+Step 1: memory_search or memory_semantic_search
+  → Get compact index with IDs
+  → Review and identify relevant results
+
+Step 2: memory_timeline
+  → Get context around interesting results
+  → Narrow down to most relevant IDs
+
+Step 3: memory_recall
+  → Fetch full details ONLY for selected IDs
+  → ~10x token savings vs fetching everything
+```
+
+> 💡 **Tip**: Call `memory_workflow()` first if unsure how to use the memory system.
+
+---
+
+## Kimi CLI Plugin Tools (3 tools)
 
 ## Tool Overview
 

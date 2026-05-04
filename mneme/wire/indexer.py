@@ -25,6 +25,8 @@ class WireIndexer:
         # Runtime counters per session for turn/step tracking
         self._turns: dict[str, int] = {}
         self._steps: dict[str, int] = {}
+        # Tool call cache: session_id -> {tool_call_id: {name, arguments}}
+        self._tool_calls: dict[str, dict[str, dict[str, str]]] = {}
 
     def index_events(self, events: list[WireEvent]) -> dict[str, int]:
         """Index a batch of events. Returns counts by type."""
@@ -83,14 +85,25 @@ class WireIndexer:
                 if evt.text:
                     self.store.add_assistant_message(evt)
             case ToolCallEvent():
-                pass  # raw event is enough; result comes in ToolResult
+                # Cache tool call info for pairing with ToolResult
+                sid_tools = self._tool_calls.setdefault(sid, {})
+                sid_tools[evt.tool_call_id] = {
+                    "name": evt.tool_name,
+                    "arguments": evt.arguments,
+                }
             case ToolResultEvent():
                 self.store.ensure_session(sid)
                 out = _normalize_output(evt.output)
+                # Look up paired ToolCall for name/input
+                tool_info = self._tool_calls.get(sid, {}).pop(evt.tool_call_id, {})
+                tool_name = tool_info.get("name")
+                tool_input = tool_info.get("arguments")
                 if evt.is_error:
                     self.store.add_observation_from_wire(
                         session_id=sid,
                         event_type="PostToolUseFailure",
+                        tool_name=tool_name,
+                        tool_input=tool_input,
                         tool_output=out,
                         turn_number=turn_n,
                         step_number=step_n,
@@ -100,6 +113,8 @@ class WireIndexer:
                     self.store.add_observation_from_wire(
                         session_id=sid,
                         event_type="PostToolUse",
+                        tool_name=tool_name,
+                        tool_input=tool_input,
                         tool_output=out,
                         turn_number=turn_n,
                         step_number=step_n,

@@ -255,6 +255,43 @@ class WireStore:
         return [dict(row) for row in rows]
 
     # ------------------------------------------------------------------
+    # Pending messages queue (for background structuring)
+    # ------------------------------------------------------------------
+
+    def add_pending_message(
+        self,
+        session_id: str,
+        message_type: str,
+        tool_use_id: str | None = None,
+        tool_name: str | None = None,
+        tool_input: str | None = None,
+        tool_response: str | None = None,
+        cwd: str | None = None,
+        error: str | None = None,
+    ) -> int:
+        """Add a message to the pending queue for background processing."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO pending_messages
+                (session_id, message_type, tool_use_id, tool_name, tool_input,
+                 tool_response, cwd, status, retry_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0)
+                ON CONFLICT DO NOTHING
+                """,
+                (
+                    session_id,
+                    message_type,
+                    tool_use_id,
+                    tool_name,
+                    tool_input,
+                    tool_response,
+                    cwd,
+                ),
+            )
+            return cursor.lastrowid or 0
+
+    # ------------------------------------------------------------------
     # Observations bridge (populate from wire for backward compat)
     # ------------------------------------------------------------------
 
@@ -274,6 +311,7 @@ class WireStore:
     ) -> int:
         """Add an observation record compatible with the old schema.
 
+        Also queues it for background AI structuring via pending_messages.
         Skips vector embedding for performance — wire events are indexed
         in bulk and vector search is secondary for trace data.
         """
@@ -298,4 +336,18 @@ class WireStore:
             prompt=prompt,
             created_at=created_at,
         )
-        return store.add_observation(obs, skip_vector=True)
+        obs_id = store.add_observation(obs, skip_vector=True)
+
+        # Queue for background structuring
+        if obs_id:
+            self.add_pending_message(
+                session_id=session_id,
+                message_type="observation",
+                tool_use_id=None,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                tool_response=tool_output,
+                error=error,
+            )
+
+        return obs_id

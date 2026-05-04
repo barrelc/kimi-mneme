@@ -10,7 +10,8 @@ from loguru import logger
 
 from mneme.config import load_config
 from mneme.db.store import ObservationStore
-from mneme.db.vector import VectorStore
+from mneme.db.structured_store import StructuredObservationStore
+from mneme.db.vector import SQLiteVecStore, VectorStore
 
 
 class Injector:
@@ -30,7 +31,9 @@ class Injector:
             use_vector if use_vector is not None else config["injection"].get("use_vector", False)
         )
         self.store = store if store is not None else ObservationStore()
+        self.structured_store = StructuredObservationStore()
         self.vector_store = VectorStore()
+        self.sqlite_vec = SQLiteVecStore()
 
     def get_context(self, cwd: str, current_session_id: str | None = None) -> str | None:
         """Get relevant context for a new session.
@@ -76,25 +79,30 @@ class Injector:
                 # Rank sessions by relevance
                 ranked_sessions = self._rank_sessions(project_sessions, cwd)
 
-                # Also try vector search for semantic similarity (optional, heavy)
+                # Also try semantic search via sqlite-vec (B.5)
                 if self.use_vector:
-                    vector_sessions = self._vector_search_sessions(cwd)
-                    if vector_sessions:
-                        # Merge vector results, avoiding duplicates
+                    semantic_results = self._semantic_search_project(cwd)
+                    if semantic_results:
+                        # Merge semantic results, avoiding duplicates
                         existing_ids = {s["id"] for s in ranked_sessions}
-                        for vs in vector_sessions:
-                            if vs["id"] not in existing_ids:
-                                ranked_sessions.append(vs)
+                        for sr in semantic_results:
+                            if sr["id"] not in existing_ids:
+                                ranked_sessions.append(sr)
 
-                # Get observations from top sessions
+                # Get structured observations from top sessions
                 for session in ranked_sessions[: self.max_results]:
                     session_id = session["id"]
-                    observations = self.store.get_observations_for_session(session_id, limit=3)
+                    # Try structured observations first (AI-structured)
+                    structured = self.structured_store.get_by_session(session_id, limit=3)
+                    if structured:
+                        session_context = self._format_structured_session(session, structured)
+                    else:
+                        # Fallback to raw observations
+                        observations = self.store.get_observations_for_session(session_id, limit=3)
+                        if not observations:
+                            continue
+                        session_context = self._format_session(session, observations)
 
-                    if not observations:
-                        continue
-
-                    session_context = self._format_session(session, observations)
                     session_tokens = self._estimate_tokens(session_context)
 
                     if total_tokens + session_tokens > max_tokens:
@@ -102,6 +110,18 @@ class Injector:
 
                     context_parts.append(session_context)
                     total_tokens += session_tokens
+
+            # Also inject recent structured observations for this project directly
+            project_name = os.path.basename(cwd.rstrip("/\\"))
+            project_structured = self.structured_store.get_for_injection(
+                project=project_name, limit=5
+            )
+            if project_structured:
+                structured_context = self._format_project_structured(project_structured)
+                structured_tokens = self._estimate_tokens(structured_context)
+                if total_tokens + structured_tokens <= max_tokens:
+                    context_parts.insert(0, structured_context)
+                    total_tokens += structured_tokens
 
             if not context_parts:
                 return None
@@ -161,13 +181,62 @@ class Injector:
 
         return "\n".join(lines)
 
+    def _semantic_search_project(self, cwd: str) -> list[dict[str, Any]]:
+        """Find semantically relevant structured observations via sqlite-vec (B.5).
+
+        Uses the project name as query to find the most relevant past
+        structured observations for proactive context injection.
+        """
+        try:
+            import os
+
+            project_name = os.path.basename(cwd.rstrip("/\\"))
+            query = f"{project_name} project development"
+
+            # Search sqlite-vec for semantic matches
+            results = self.sqlite_vec.search_with_content(
+                query=query,
+                project=project_name,
+                limit=5,
+            )
+
+            if not results:
+                return []
+
+            # Convert to session-like objects for merging with ranked_sessions
+            sessions = []
+            seen_ids = set()
+            for r in results:
+                obs = r.get("observation", {})
+                session_id = obs.get("session_id")
+                if not session_id or session_id in seen_ids:
+                    continue
+                seen_ids.add(session_id)
+
+                # Fetch session data
+                all_sessions = self.store.get_sessions(limit=100)
+                session_map = {s["id"]: s for s in all_sessions}
+
+                if session_id in session_map:
+                    session = session_map[session_id]
+                    session["_relevance_score"] = 1.0 - (r.get("distance", 0.5) * 0.5)
+                    session["_semantic_match"] = {
+                        "field": r.get("matched_field", "unknown"),
+                        "title": obs.get("title", ""),
+                    }
+                    sessions.append(session)
+
+            return sessions
+        except Exception as e:
+            logger.debug(f"Semantic search failed: {e}")
+            return []
+
     def _vector_search_sessions(self, cwd: str) -> list[dict[str, Any]]:
-        """Find semantically similar sessions via vector search.
+        """Find semantically similar sessions via vector search (legacy Chroma fallback).
 
         Searches for sessions related to the current project context.
         """
         try:
-            # Use project name and recent activity as query
             import os
 
             project_name = os.path.basename(cwd.rstrip("/\\"))
@@ -177,13 +246,11 @@ class Injector:
             if not vector_results:
                 return []
 
-            # Get unique session IDs from vector results
             session_ids = list({vr["session_id"] for vr in vector_results if vr.get("session_id")})
 
             if not session_ids:
                 return []
 
-            # Fetch full session data
             all_sessions = self.store.get_sessions(limit=100)
             session_map = {s["id"]: s for s in all_sessions}
 
@@ -191,7 +258,7 @@ class Injector:
             for sid in session_ids:
                 if sid in session_map:
                     session = session_map[sid]
-                    session["_relevance_score"] = 0.6  # Base score for vector match
+                    session["_relevance_score"] = 0.6
                     results.append(session)
 
             return results
@@ -270,7 +337,7 @@ class Injector:
         return filtered if filtered else scored[: self.max_results]
 
     def _format_session(self, session: dict[str, Any], observations: list[dict[str, Any]]) -> str:
-        """Format a session and its observations."""
+        """Format a session and its raw observations."""
         lines = []
         session_id_short = session["id"][:8]
         started = session.get("started_at", "unknown")
@@ -300,6 +367,82 @@ class Injector:
                 detail += f": {content}"
 
             lines.append(f"- **{event}**{detail}")
+
+        return "\n".join(lines)
+
+    def _format_structured_session(
+        self, session: dict[str, Any], structured: list[dict[str, Any]]
+    ) -> str:
+        """Format a session with structured observations."""
+        lines = []
+        session_id_short = session["id"][:8]
+        started = session.get("started_at", "unknown")
+        score = session.get("_relevance_score", 0.0)
+
+        lines.append(
+            f"### Session {session_id_short} ({started})"
+            + (f" — relevance: {score:.2f}" if score > 0 else "")
+        )
+
+        for obs in structured:
+            obs_type = obs.get("type", "discovery")
+            title = obs.get("title", "Untitled")
+            subtitle = obs.get("subtitle", "")
+            source = obs.get("source", "heuristic")
+            source_emoji = {"ai": "🤖", "heuristic": "⚡", "manual": "✋"}.get(source, "•")
+
+            type_emoji = {
+                "bugfix": "🐛",
+                "feature": "✨",
+                "refactor": "♻️",
+                "change": "📝",
+                "discovery": "🔍",
+                "decision": "🎯",
+            }.get(obs_type, "•")
+
+            lines.append(f"- {source_emoji} {type_emoji} **{title}**")
+            if subtitle:
+                lines.append(f"  _{subtitle}_")
+
+            facts = obs.get("facts", [])
+            for fact in facts[:2]:
+                lines.append(f"  • {fact}")
+
+            files = (obs.get("files_modified", []) + obs.get("files_read", []))[:2]
+            if files:
+                lines.append(f"  📁 {', '.join(files)}")
+
+        return "\n".join(lines)
+
+    def _format_project_structured(self, structured: list[dict[str, Any]]) -> str:
+        """Format recent structured observations for the project."""
+        lines = ["## 📚 Recent Knowledge"]
+
+        for obs in structured:
+            obs_type = obs.get("type", "discovery")
+            title = obs.get("title", "Untitled")
+            narrative = obs.get("narrative", "")
+            source = obs.get("source", "heuristic")
+            source_emoji = {"ai": "🤖", "heuristic": "⚡", "manual": "✋"}.get(source, "•")
+
+            type_emoji = {
+                "bugfix": "🐛",
+                "feature": "✨",
+                "refactor": "♻️",
+                "change": "📝",
+                "discovery": "🔍",
+                "decision": "🎯",
+            }.get(obs_type, "•")
+
+            lines.append(f"- {source_emoji} {type_emoji} **{title}**")
+            if narrative:
+                narrative = " ".join(narrative.split())
+                narrative = narrative[:100] + "..." if len(narrative) > 100 else narrative
+                lines.append(f"  {narrative}")
+
+            facts = obs.get("facts", [])
+            for fact in facts[:2]:
+                lines.append(f"  • {fact}")
 
         return "\n".join(lines)
 

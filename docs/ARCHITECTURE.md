@@ -271,6 +271,26 @@ CREATE VIRTUAL TABLE observations_fts USING fts5(
 | `mneme_timeline` | Get chronological context | `observation_id`, `radius` |
 | `mneme_get` | Fetch full observation details | `ids` (array) |
 
+## MCP Tools (15 total)
+
+| Tool | Purpose |
+|------|---------|
+| `memory_search` | FTS5 search over structured observations |
+| `memory_semantic_search` | sqlite-vec semantic search (with `days` recency filter) |
+| `memory_recall` | Get full observation by ID |
+| `memory_timeline` | Chronological observations for a session |
+| `memory_stats` | Memory statistics |
+| `memory_by_concept` | Search by concept tag |
+| `memory_by_file` | Find observations related to a file |
+| `memory_workflow` | **How to use memory effectively** (3-step guide) |
+| `smart_search` | Tree-sitter AST symbol search |
+| `smart_outline` | File structural outline |
+| `smart_unfold` | Symbol body extraction |
+| `memory_build_collection` | Create knowledge collection |
+| `memory_list_collections` | List collections |
+| `memory_export_collection` | Export collection (md/json/plain) |
+| `memory_query_collection` | **Semantic Q&A over collection** |
+
 ## Progressive Disclosure
 
 To minimize token usage, search follows a 3-layer pattern:
@@ -414,6 +434,7 @@ Summary:
 | Hook execution | < 100ms (fire-and-forget) |
 | Search query | < 500ms |
 | Vector search | < 200ms |
+| Collection query | < 500ms |
 | Web UI load | < 1s |
 | DB size growth | ~1MB per 100 sessions |
 | Checkpoint creation | < 50ms |

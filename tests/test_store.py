@@ -21,11 +21,29 @@ def temp_db():
     yield db_path
 
     # On Windows, SQLite connections may keep the file locked.
-    # Force garbage collection and retry deletion.
+    # Force close all connections and retry deletion with backoff.
     import gc
+    import sqlite3
+    import time
 
     gc.collect()
-    Path(db_path).unlink(missing_ok=True)
+
+    # Close any lingering sqlite connections by checking gc objects
+    # Use type() check to avoid triggering __class__ on torch objects (FutureWarning)
+    for obj in gc.get_objects():
+        try:
+            if type(obj) is sqlite3.Connection:
+                obj.close()
+        except Exception:
+            pass
+
+    # Retry deletion with backoff (WAL files may need time to clean up)
+    for _ in range(10):
+        try:
+            Path(db_path).unlink(missing_ok=True)
+            break
+        except PermissionError:
+            time.sleep(0.1)
 
 
 @pytest.fixture

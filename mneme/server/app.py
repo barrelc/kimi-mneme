@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from mneme.config import load_config
+from mneme.core.worker import StructuringWorker
 from mneme.db.store import ObservationStore
 from mneme.server.routes import router
 from mneme.wire.watcher import get_global_watcher, stop_global_watcher
@@ -78,9 +79,46 @@ async def lifespan(app: FastAPI):
         watcher.start()
     except Exception:
         logger.exception("Failed to start session watcher")
+    # Start background structuring worker
+    worker = StructuringWorker(interval=5)
+    worker_task = asyncio.create_task(worker.start())
+
+    # Start MCP server in background (B.7)
+    mcp_process = None
+    if config.get("mcp", {}).get("auto_start", False):
+        try:
+            import subprocess
+            import sys
+
+            mcp_cmd = [sys.executable, "-m", "mneme.mcp_server"]
+            mcp_process = subprocess.Popen(
+                mcp_cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            logger.info(f"MCP server started (PID: {mcp_process.pid})")
+        except Exception:
+            logger.debug("Failed to auto-start MCP server")
+
     yield
+
     logger.info("kimi-mneme server shutting down")
+    worker.stop()
+    worker_task.cancel()
+    try:
+        await worker_task
+    except asyncio.CancelledError:
+        pass
     stop_global_watcher()
+
+    # Stop MCP server
+    if mcp_process:
+        try:
+            mcp_process.terminate()
+            mcp_process.wait(timeout=5)
+            logger.info("MCP server stopped")
+        except Exception:
+            pass
 
 
 def create_app() -> FastAPI:

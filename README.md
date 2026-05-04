@@ -14,12 +14,18 @@
 | Feature | Description |
 |---------|-------------|
 | 🧠 **Persistent Memory** | Context survives across sessions, restarts, and reboots |
-| 🤖 **AI Compression** | Semantic summaries generated via LLM (Moonshot API) |
-| 🔍 **Smart Search** | Full-text + vector hybrid search across your project history |
+| 🤖 **AI Structuring** | Raw tool outputs → structured observations (title, facts, narrative, concepts) via Kimi API |
+| ⚡ **Heuristic Fallback** | Works without API key — rule-based structuring when Kimi is unavailable |
+| 🔍 **Smart Search** | Full-text (FTS5) + semantic (sqlite-vec) hybrid search across your project history |
 | 📊 **Progressive Disclosure** | 3-layer retrieval: index → timeline → full details (token-efficient) |
 | 🖥️ **Web Viewer** | Real-time memory stream at `http://localhost:37777` |
 | 🔌 **Kimi Plugin Tools** | `mneme_search`, `mneme_timeline`, `mneme_get` — AI can query its own memory |
-| 🔒 **Privacy Tags** | Use `<private>` blocks to exclude sensitive content |
+| 🖇️ **MCP Server** | Claude Desktop, Cursor, Goose integration — 15 memory tools |
+| 📝 **PROJECT.md** | Auto-generated project context from structured observations |
+| 🔒 **Privacy Tags** | 3-layer filtering: strip system content → redact sensitive → deep sanitize |
+| 📊 **Knowledge Collections** | Curate and query project-specific knowledge corpora |
+| 🌳 **Tree-sitter Analyzer** | AST-based code exploration (Python, JS, TS, Rust, Go) |
+| 💰 **Token Economics** | See token savings and read cost per observation |
 | ⚡ **Zero Config** | Install and forget — works automatically |
 | 📁 **Project Config** | Per-project `.mneme.json` for custom settings |
 | 📌 **Session Checkpoints** | Resume context after Kimi CLI compaction |
@@ -132,9 +138,10 @@ open http://localhost:37777
 ┌─────────────────────────────────────────────────────────────┐
 │                    Storage Layer                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   SQLite    │  │   Chroma    │  │   Web Server        │  │
-│  │  Sessions   │  │  (vectors)  │  │   (port 37777)      │  │
-│  │  Observations│  │             │  │                     │  │
+│  │   SQLite    │  │  sqlite-vec │  │   Web Server        │  │
+│  │  Sessions   │  │  (primary)  │  │   (port 37777)      │  │
+│  │  Structured │  │  + Chroma   │  │   SSE stream        │  │
+│  │  Observations│  │  (fallback) │  │                     │  │
 │  │  Checkpoints│  │             │  │                     │  │
 │  │  Patterns   │  │             │  │                     │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
@@ -148,11 +155,12 @@ open http://localhost:37777
 | **Hooks** | 13 lifecycle event handlers (SessionStart, PostToolUse, SessionEnd, PostCompact, etc.) |
 | **Plugin** | 3 AI-callable tools: `mneme_search`, `mneme_timeline`, `mneme_get` |
 | **Extractor** | Parses observations, detects truncation, creates checkpoints, detects patterns |
-| **Compressor** | Generates semantic summaries via Moonshot API |
+| **Compressor** | Generates semantic summaries via Kimi API (reuses OAuth token) |
 | **Injector** | Injects checkpoints, patterns, and relevant past context at session start |
 | **SQLite** | Stores sessions, observations, summaries, checkpoints, patterns, compaction events |
-| **Chroma** | Vector database for semantic similarity search |
-| **Web Server** | FastAPI-based UI and API on port 37777 |
+| **sqlite-vec** | SQLite extension for semantic similarity search (primary, cross-platform) |
+| **Chroma** | Vector database for semantic similarity search (legacy fallback, Linux/Mac only) |
+| **Web Server** | FastAPI-based UI and API on port 37777 — real-time SSE, log drawer, welcome modal |
 
 ---
 
@@ -206,9 +214,9 @@ This merges with global config (project values override global).
 ## Requirements
 
 - **Python**: 3.10+
-- **Kimi Code CLI**: 1.40+
+- **Kimi Code CLI**: 1.41+
 - **OS**: Windows, macOS, Linux
-- **Optional**: Moonshot API key (for AI compression)
+- **Optional**: No API key needed — reuses Kimi CLI OAuth token
 
 ---
 

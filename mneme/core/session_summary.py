@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 from loguru import logger
 
-from mneme.config import load_config
+from mneme.core.ai_provider import _load_kimi_token
 
 SESSION_SUMMARY_PROMPT = """You are a coding session analyst. Analyze the following session observations and produce a structured summary in Russian language.
 
@@ -39,14 +39,12 @@ Respond ONLY with valid JSON. No markdown, no explanations."""
 
 
 class SessionSummaryGenerator:
-    """Generate structured session summaries using LLM."""
+    """Generate structured session summaries using Kimi API."""
 
     def __init__(self) -> None:
-        config = load_config()
-        self.enabled = config["compression"]["enabled"]
-        self.provider = config["compression"]["provider"]
-        self.model = config["compression"]["model"]
-        self.api_key = config["compression"]["api_key"]
+        self.token = _load_kimi_token()
+        self.enabled = bool(self.token)
+        self.model = "kimi-k2.5"
 
     def _format_observations(self, observations: list[dict[str, Any]]) -> str:
         """Format observations for the LLM prompt."""
@@ -83,10 +81,6 @@ class SessionSummaryGenerator:
             logger.debug("Session summary generation disabled")
             return None
 
-        if not self.api_key:
-            logger.warning("Session summary: no API key configured")
-            return None
-
         if len(observations) < 3:
             logger.debug("Too few observations to generate summary")
             return None
@@ -95,46 +89,37 @@ class SessionSummaryGenerator:
             formatted = self._format_observations(observations)
             prompt = SESSION_SUMMARY_PROMPT.format(observations=formatted)
 
-            if self.provider == "moonshot":
-                return self._generate_moonshot(prompt)
-            else:
-                logger.warning(f"Unknown provider: {self.provider}")
-                return None
+            response = httpx.post(
+                "https://api.kimi.com/coding/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a precise coding session analyst. Always respond with valid JSON only.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 2000,
+                },
+                timeout=60.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            content = data["choices"][0]["message"]["content"]
+
+            # Parse JSON from response
+            return self._parse_summary(content)
 
         except Exception as e:
             logger.error(f"Session summary generation failed: {e}")
             return None
-
-    def _generate_moonshot(self, prompt: str) -> dict[str, Any] | None:
-        """Call Moonshot API for structured summary."""
-
-        response = httpx.post(
-            "https://api.moonshot.cn/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": self.model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a precise coding session analyst. Always respond with valid JSON only.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.3,
-                "max_tokens": 2000,
-            },
-            timeout=60.0,
-        )
-        response.raise_for_status()
-        data = response.json()
-
-        content = data["choices"][0]["message"]["content"]
-
-        # Parse JSON from response
-        return self._parse_summary(content)
 
     def _parse_summary(self, content: str) -> dict[str, Any] | None:
         """Parse LLM response into structured summary."""

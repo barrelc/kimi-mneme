@@ -27,6 +27,8 @@ kimi-mneme/
 │   ├── session_end.py
 │   ├── post_tool_use.py
 │   ├── post_tool_use_failure.py
+│   ├── pre_compact.py
+│   ├── post_compact.py
 │   └── user_prompt_submit.py
 ├── plugin/             # Kimi CLI plugin
 │   ├── plugin.json
@@ -34,34 +36,39 @@ kimi-mneme/
 │       ├── search.py
 │       ├── timeline.py
 │       └── get.py
-├── server/             # Web UI + API
-│   ├── app.py
-│   ├── routes.py
-│   └── static/
-│       ├── index.html
-│       ├── style.css
-│       └── app.js
-├── db/                 # Database layer
-│   ├── __init__.py
-│   ├── schema.py
-│   ├── store.py
-│   └── migrations/
-├── core/               # Business logic
-│   ├── __init__.py
-│   ├── extractor.py
-│   ├── compressor.py
-│   ├── injector.py
-│   └── sanitize.py
-├── config/             # Configuration
-│   └── default.json
-├── scripts/            # Install/uninstall
-│   ├── install.py
-│   └── uninstall.py
-├── tests/              # Test suite
-│   ├── test_hooks.py
+├── mneme/              # Main package
+│   ├── core/           # Business logic
+│   │   ├── codebase_analyzer.py    # Tree-sitter AST analysis
+│   │   ├── project_md.py           # AGENTS.md + PROJECT.md generation
+│   │   └── prompts/                # AI prompts & JSON parser
+│   ├── db/             # Database layer
+│   │   ├── schema.py               # 18 migrations
+│   │   ├── store.py                # Raw observations
+│   │   ├── structured_store.py     # Structured observations + FTS5
+│   │   ├── vector.py               # sqlite-vec + ChromaDB
+│   │   ├── collections_store.py    # Knowledge Collections
+│   │   └── wire_store.py           # Wire events
+│   ├── server/         # Web UI + API
+│   │   ├── app.py
+│   │   ├── routes.py               # 30+ endpoints
+│   │   └── static/
+│   │       ├── index.html          # Welcome modal, log drawer
+│   │       ├── style.css           # Glassmorphism, skeletons
+│   │       └── app.js              # SSE, WebSocket, filters
+│   ├── mcp_server.py   # FastMCP — 15 tools
+│   ├── cli.py          # CLI commands
+│   └── config.py       # Configuration
+├── server/             # Legacy server entry (re-exports)
+├── tests/              # Test suite (111 tests)
+│   ├── test_codebase_analyzer.py   # 15 tests
+│   ├── test_collections.py         # 9 tests
+│   ├── test_sanitize.py            # Privacy v2
+│   ├── test_sqlite_vec.py          # Vector search
 │   ├── test_store.py
-│   ├── test_search.py
-│   └── test_compressor.py
+│   ├── test_structured_store.py    # Dedup v2
+│   ├── test_worker.py
+│   ├── test_json_parser.py
+│   └── test_ai_provider.py
 ├── docs/               # Documentation
 ├── README.md
 ├── LICENSE
@@ -72,14 +79,20 @@ kimi-mneme/
 ## Running Tests
 
 ```bash
-# All tests
+# All tests (111 tests)
 pytest
+
+# Quick check
+pytest -q
 
 # With coverage
 pytest --cov=mneme --cov-report=html
 
-# Specific test
-pytest tests/test_store.py -v
+# Specific test files
+pytest tests/test_codebase_analyzer.py -v
+pytest tests/test_collections.py -v
+pytest tests/test_sqlite_vec.py -v
+pytest tests/test_sanitize.py -v
 
 # Integration tests (require Kimi CLI)
 pytest tests/integration/ -v
@@ -207,11 +220,12 @@ python -m mneme.db.migrate downgrade
 ## Release Process
 
 1. Update version in `pyproject.toml`
-2. Update `CHANGELOG.md`
-3. Run tests: `pytest`
-4. Build: `python -m build`
-5. Tag: `git tag v1.0.0`
-6. Push: `git push origin v1.0.0`
+2. Update `docs/IMPLEMENTATION_PLAN.md` with new metrics
+3. Update all docs (README, ARCHITECTURE, TOOLS, WEB_UI, DEVELOPMENT)
+4. Run tests: `pytest` (111 tests must pass)
+5. Build: `python -m build`
+6. Tag: `git tag v2.1.0`
+7. Push: `git push origin v2.1.0`
 
 ## Contributing
 

@@ -989,6 +989,48 @@ class ObservationStore:
 
         return [dict(row) for row in rows]
 
+    def get_token_economics(self) -> dict[str, Any]:
+        """Calculate token economics across all compaction events.
+
+        Returns:
+            Dict with tokens_invested, tokens_loaded, tokens_saved,
+            savings_percent, compaction_count, observations_preserved.
+        """
+        with self._get_conn() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    COALESCE(SUM(tokens_before), 0) as total_before,
+                    COALESCE(SUM(tokens_after), 0) as total_after,
+                    COALESCE(SUM(observations_dropped), 0) as total_dropped,
+                    COUNT(*) as compaction_count
+                FROM compaction_events
+                """
+            ).fetchone()
+
+            total_obs = conn.execute(
+                "SELECT COUNT(*) FROM observations"
+            ).fetchone()[0]
+
+        total_before = row[0] or 0
+        total_after = row[1] or 0
+        total_dropped = row[2] or 0
+        compaction_count = row[3] or 0
+
+        tokens_saved = max(0, total_before - total_after)
+        savings_percent = round((tokens_saved / total_before) * 100, 1) if total_before > 0 else 0
+
+        return {
+            "tokens_invested": total_before,
+            "tokens_loaded": total_after,
+            "tokens_saved": tokens_saved,
+            "savings_percent": savings_percent,
+            "compaction_count": compaction_count,
+            "observations_dropped": total_dropped,
+            "observations_preserved": max(0, total_obs - total_dropped),
+            "total_observations": total_obs,
+        }
+
     # -----------------------------------------------------------------------
     # Patterns (cross-session)
     # -----------------------------------------------------------------------
