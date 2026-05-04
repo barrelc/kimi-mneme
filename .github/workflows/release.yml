@@ -30,7 +30,7 @@ jobs:
       - name: Publish to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PUPI }}
-        run: uv publish
+        run: uv publish --skip-existing
 
       - name: Create GitHub Deployment
         if: success()
