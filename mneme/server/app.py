@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -58,18 +59,17 @@ async def lifespan(app: FastAPI):
     logger.info(
         f"kimi-mneme server starting on {config['server']['host']}:{config['server']['port']}"
     )
+    loop = asyncio.get_running_loop()
     # Start wire session watcher for indexing Kimi CLI traces
     try:
         watcher = get_global_watcher()
 
         def _broadcast(sid: str, counts: dict[str, int]) -> None:
-            import asyncio
             msg = {"type": "wire_update", "session_id": sid, "counts": counts}
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(manager.broadcast(msg))
-            except RuntimeError:
-                pass
+            with suppress(Exception):
+                asyncio.run_coroutine_threadsafe(
+                    manager.broadcast(msg), loop
+                )
 
         watcher.on_ingest = _broadcast
         watcher.start()
