@@ -7,15 +7,11 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   pypi-publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/kimi-mneme
     steps:
       - uses: actions/checkout@v4
 
@@ -29,4 +25,6 @@ jobs:
         run: uv build
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish
