@@ -222,7 +222,7 @@ class WireStore:
         """Get assistant messages for a session."""
         with self._get_conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM assistant_messages WHERE session_id = ? ORDER BY timestamp LIMIT ?",
+                "SELECT * FROM assistant_messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?",
                 (session_id, limit),
             ).fetchall()
         return [dict(row) for row in rows]
