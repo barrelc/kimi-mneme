@@ -136,38 +136,49 @@ open http://localhost:37777
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Kimi Code CLI                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   Hooks     │  │   Plugin    │  │   User Prompts      │  │
-│  │  (13 events)│  │  (3 tools)  │  │                     │  │
-│  └──────┬──────┘  └──────┬──────┘  └─────────────────────┘  │
-└─────────┼────────────────┼───────────────────────────────────┘
-          │                │
-          ▼                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    kimi-mneme Core                           │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │  Extractor  │  │  Compressor │  │     Injector        │  │
-│  │  (context)  │  │  (AI sum.)  │  │  (session start)    │  │
-│  │  Checkpoints│  │             │  │  Patterns           │  │
-│  │  Patterns   │  │             │  │                     │  │
-│  └──────┬──────┘  └──────┬──────┘  └─────────────────────┘  │
-└─────────┼────────────────┼───────────────────────────────────┘
-          │                │
-          ▼                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Storage Layer                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   SQLite    │  │  sqlite-vec │  │   Web Server        │  │
-│  │  Sessions   │  │  (primary)  │  │   (port 37777)      │  │
-│  │  Structured │  │  + Chroma   │  │   SSE stream        │  │
-│  │  Observations│  │  (fallback) │  │                     │  │
-│  │  Checkpoints│  │             │  │                     │  │
-│  │  Patterns   │  │             │  │                     │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph kimi_cli["🖥️ Kimi Code CLI"]
+        hooks["🔌 Hooks<br/>13 lifecycle events"]
+        plugin["🔧 Plugin Tools<br/>3 AI-callable tools"]
+        prompts["💬 User Prompts"]
+    end
+
+    subgraph core["⚙️ kimi-mneme Core"]
+        extractor["📥 Extractor<br/>context • checkpoints • patterns"]
+        compressor["🤖 Compressor<br/>AI semantic summaries"]
+        injector["📤 Injector<br/>session start • patterns"]
+    end
+
+    subgraph storage["💾 Storage Layer"]
+        sqlite[("SQLite<br/>sessions • observations<br/>checkpoints • patterns")]
+        vec["🔍 sqlite-vec<br/>semantic search"]
+        server["🌐 Web Server<br/>localhost:37777"]
+    end
+
+    hooks --> extractor
+    plugin --> extractor
+    extractor --> compressor
+    compressor --> injector
+    injector --> prompts
+    extractor --> sqlite
+    compressor --> sqlite
+    injector --> sqlite
+    sqlite --> vec
+    sqlite --> server
+
+    style kimi_cli fill:#1a1a2e,stroke:#16213e,stroke-width:2px,color:#fff
+    style core fill:#16213e,stroke:#0f3460,stroke-width:2px,color:#fff
+    style storage fill:#0f3460,stroke:#e94560,stroke-width:2px,color:#fff
+    style hooks fill:#533483,color:#fff
+    style plugin fill:#533483,color:#fff
+    style prompts fill:#533483,color:#fff
+    style extractor fill:#e94560,color:#fff
+    style compressor fill:#e94560,color:#fff
+    style injector fill:#e94560,color:#fff
+    style sqlite fill:#1a1a2e,color:#fff
+    style vec fill:#1a1a2e,color:#fff
+    style server fill:#1a1a2e,color:#fff
 ```
 
 ### Components
@@ -182,7 +193,7 @@ open http://localhost:37777
 | **SQLite** | Stores sessions, observations, summaries, checkpoints, patterns, compaction events |
 | **sqlite-vec** | SQLite extension for semantic similarity search (primary, cross-platform) |
 | **Chroma** | Vector database for semantic similarity search (legacy fallback, Linux/Mac only) |
-| **Web Server** | FastAPI-based UI and API on port 37777 — real-time SSE, log drawer, welcome modal |
+| **Web Server** | FastAPI-based API on port 37777 — real-time SSE event stream |
 
 ---
 
