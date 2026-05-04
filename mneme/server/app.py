@@ -61,6 +61,17 @@ async def lifespan(app: FastAPI):
     # Start wire session watcher for indexing Kimi CLI traces
     try:
         watcher = get_global_watcher()
+
+        def _broadcast(sid: str, counts: dict[str, int]) -> None:
+            import asyncio
+            msg = {"type": "wire_update", "session_id": sid, "counts": counts}
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(manager.broadcast(msg))
+            except RuntimeError:
+                pass
+
+        watcher.on_ingest = _broadcast
         watcher.start()
     except Exception:
         logger.exception("Failed to start session watcher")

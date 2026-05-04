@@ -7,6 +7,8 @@ let currentProject = 'all';
 let currentFilter = 'all';
 let autoRefresh = true;
 let logEntries = [];
+let wsConnection = null;
+let wsReconnectTimer = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,7 +25,80 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStats();
   loadObservations();
   startLogStream();
+  connectWebSocket();
 });
+
+// WebSocket for real-time wire updates
+function connectWebSocket() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${proto}//${location.host}/ws`;
+
+  try {
+    wsConnection = new WebSocket(wsUrl);
+
+    wsConnection.onopen = () => {
+      addLog('info', 'WebSocket connected — real-time updates active');
+      // Subscribe to all wire events
+      wsConnection.send(JSON.stringify({action: 'subscribe', channel: 'all'}));
+    };
+
+    wsConnection.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'wire_update') {
+          handleWireUpdate(msg.session_id, msg.counts);
+        }
+      } catch (e) {
+        console.error('WS message parse error:', e);
+      }
+    };
+
+    wsConnection.onclose = () => {
+      addLog('info', 'WebSocket disconnected — reconnecting in 3s...');
+      scheduleReconnect();
+    };
+
+    wsConnection.onerror = (err) => {
+      console.error('WebSocket error:', err);
+    };
+  } catch (e) {
+    console.error('Failed to create WebSocket:', e);
+    scheduleReconnect();
+  }
+}
+
+function scheduleReconnect() {
+  if (wsReconnectTimer) return;
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null;
+    connectWebSocket();
+  }, 3000);
+}
+
+function handleWireUpdate(sessionId, counts) {
+  // Always refresh stats (lightweight)
+  loadStats();
+
+  // Only refresh the main view if auto-refresh is on and user is not in timeline/search
+  if (!autoRefresh) return;
+
+  const timelineView = document.getElementById('timeline-view');
+  const searchInput = document.getElementById('search-input');
+  if (timelineView && timelineView.style.display !== 'none') return;
+  if (searchInput && searchInput.value.trim()) return;
+
+  // Show a subtle "new data" indicator instead of full reload?
+  // For now: smart reload based on current filter
+  if (currentFilter === 'all' || currentFilter === 'SessionStart') {
+    loadObservations();
+  } else if (currentFilter === 'thinking') {
+    loadThinking();
+  } else if (currentFilter === 'assistant') {
+    loadAssistantMessages();
+  } else {
+    loadFilteredObservations();
+  }
+}
 
 // Heatmap — unique visual element
 function initHeatmap() {
@@ -1082,13 +1157,10 @@ function formatTime(dateStr) {
   return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// Auto-refresh observations
+// Fallback polling (every 10s) for stats only.
+// Observations are pushed via WebSocket in real time.
 setInterval(() => {
   if (autoRefresh) {
     loadStats();
-    const searchInput = document.getElementById('search-input');
-    if (!searchInput.value.trim()) {
-      loadObservations();
-    }
   }
-}, 30000);
+}, 10000);

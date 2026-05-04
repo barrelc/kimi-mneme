@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 from loguru import logger
@@ -70,6 +71,7 @@ class SessionWatcher:
         self._lock = threading.Lock()
         self._observer: Observer | None = None
         self._running = False
+        self.on_ingest: Callable[[str, dict[str, int]], None] | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -139,6 +141,7 @@ class SessionWatcher:
 
     def _ingest(self, reader: SessionReader) -> None:
         """Read new wire events and state for a session."""
+        counts: dict[str, int] = {}
         try:
             events = reader.read_new_events()
             if events:
@@ -150,6 +153,12 @@ class SessionWatcher:
                 self.indexer.index_state(state)
         except Exception:
             logger.exception(f"Failed to ingest session {reader.session_id}")
+        finally:
+            if counts and self.on_ingest:
+                try:
+                    self.on_ingest(reader.session_id, counts)
+                except Exception:
+                    logger.exception("Ingest callback failed")
 
     def _on_wire_changed(self, session_dir: Path) -> None:
         """Callback when wire.jsonl is modified."""
