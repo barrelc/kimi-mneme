@@ -2,11 +2,37 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from loguru import logger
 
 from mneme.config import load_config
+
+
+_CHROMA_BROKEN_WARNED = False
+
+
+def _is_chroma_broken_on_windows() -> bool:
+    """Check if chromadb >= 1.0 on Windows has known segfault issues."""
+    global _CHROMA_BROKEN_WARNED
+    if sys.platform != "win32":
+        return False
+    try:
+        import chromadb
+
+        version = getattr(chromadb, "__version__", "0")
+        major = int(version.split(".")[0])
+        broken = major >= 1
+        if broken and not _CHROMA_BROKEN_WARNED:
+            _CHROMA_BROKEN_WARNED = True
+            logger.warning(
+                "ChromaDB >= 1.0 on Windows has known stability issues (segfault). "
+                "Vector search disabled. Install chromadb<1.0 to enable."
+            )
+        return broken
+    except Exception:
+        return False
 
 
 class VectorStore:
@@ -19,9 +45,12 @@ class VectorStore:
         self._client: Any = None
         self._collection: Any = None
         self._embedding_fn: Any = None
+        self._disabled = _is_chroma_broken_on_windows()
 
     def _get_client(self) -> Any:
         """Lazy-init Chroma client."""
+        if self._disabled:
+            return None
         if self._client is None:
             try:
                 import chromadb
