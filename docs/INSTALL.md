@@ -197,6 +197,129 @@ curl http://localhost:37777/api/health
 
 ---
 
+## MCP Server Setup
+
+kimi-mneme exposes **15 memory tools** via MCP (Model Context Protocol) for Claude Desktop, Cursor, Goose, and other MCP-compatible clients.
+
+### Claude Desktop
+
+1. Open Claude Desktop → Settings → Developer → Edit Config
+2. Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "kimi-mneme": {
+      "command": "uvx",
+      "args": ["--from", "kimi-mneme", "mneme", "mcp"]
+    }
+  }
+}
+```
+
+Or with `uv tool` (recommended — faster startup):
+
+```json
+{
+  "mcpServers": {
+    "kimi-mneme": {
+      "command": "mneme",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+3. Restart Claude Desktop
+4. Look for 🔌 kimi-mneme icon in the toolbar
+
+### Cursor
+
+1. Open Cursor → Settings → MCP
+2. Add server:
+
+```json
+{
+  "mcpServers": {
+    "kimi-mneme": {
+      "command": "uvx",
+      "args": ["--from", "kimi-mneme", "mneme", "mcp"]
+    }
+  }
+}
+```
+
+Or use the Command Palette (`Ctrl+Shift+P`) → "MCP: Add Server"
+
+### Goose
+
+1. Run in terminal:
+
+```bash
+goose configure --mcp-server kimi-mneme
+# Enter command: uvx --from kimi-mneme mneme mcp
+```
+
+Or edit `~/.config/goose/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kimi-mneme": {
+      "command": "uvx",
+      "args": ["--from", "kimi-mneme", "mneme", "mcp"]
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+| Tool | Purpose |
+|------|---------|
+| `memory_search` | Full-text search (FTS5) |
+| `memory_semantic_search` | Vector similarity search |
+| `memory_recall` | Get full observation by ID |
+| `memory_timeline` | Chronological context |
+| `memory_stats` | Memory statistics |
+| `memory_by_concept` | Filter by concept tag |
+| `memory_by_file` | Find observations for a file |
+| `memory_workflow` | How to use memory (guide) |
+| `smart_search` | Tree-sitter AST symbol search |
+| `smart_outline` | File structural outline |
+| `smart_unfold` | Symbol body extraction |
+| `memory_build_collection` | Create knowledge collection |
+| `memory_list_collections` | List collections |
+| `memory_export_collection` | Export as markdown/JSON |
+| `memory_query_collection` | Semantic Q&A over collection |
+
+### Progressive Disclosure Workflow
+
+To minimize token usage, MCP clients should follow this 3-layer pattern:
+
+```
+Step 1: memory_search or memory_semantic_search
+  → Get compact index with IDs
+
+Step 2: memory_timeline
+  → Get context around interesting results
+
+Step 3: memory_recall
+  → Fetch full details ONLY for selected IDs
+  → ~10x token savings vs fetching everything
+```
+
+### Troubleshooting MCP
+
+| Problem | Solution |
+|---------|----------|
+| "Command not found" | Ensure `uvx` or `mneme` is in PATH |
+| Server won't start | Check `mneme stats` works in terminal |
+| No tools showing | Restart the MCP client (Claude/Cursor/Goose) |
+| Slow startup | Use `uv tool install` instead of `uvx` |
+
+---
+
 ## Uninstall
 
 ```bash
