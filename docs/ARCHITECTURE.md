@@ -69,14 +69,22 @@ Session ends → SessionEnd hook → Mark session complete + detect patterns
 ### 2. Compression (AI Summarization)
 
 ```
-Raw observations → Extractor (clean & structure)
+Raw observations → Sanitization pipeline (3-layer privacy filter)
+     ↓
+Extractor (clean & structure)
      ↓
 Compressor (Moonshot API) → Semantic summary
      ↓
 Store summary + keywords in SQLite
      ↓
-Generate embedding → Store in Chroma
+Generate embedding → Store in sqlite-vec
 ```
+
+**Sanitization pipeline** (applied before any AI processing):
+1. **Strip system content** — remove `<system>`, `<system_instruction>`, `<system-reminder>` tags
+2. **Redact sensitive patterns** — API keys, tokens, passwords, private keys via regex
+3. **Sanitize privacy tags** — replace `<private>...</private>` with `[PRIVATE]`
+4. **Truncate** — limit content length before API call
 
 ### 3. Retrieval (Context Injection)
 

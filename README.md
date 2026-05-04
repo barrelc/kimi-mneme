@@ -25,8 +25,27 @@
 - **Never lose context** — Your coding history survives across sessions, restarts, and even weeks of inactivity
 - **AI-powered memory** — Automatically structures raw tool outputs into searchable observations
 - **Zero configuration** — Works out of the box with Kimi Code CLI
-- **Privacy-first** — Local SQLite storage, no cloud dependencies
+- **Privacy-first** — Local SQLite storage; AI structuring/compression are optional and can be disabled
 - **Cross-platform** — Windows, macOS, Linux support
+
+### Offline Behavior & Privacy
+
+kimi-mneme is designed to work **fully offline** with graceful degradation when AI services are unavailable:
+
+| Feature | With API (online) | Without API (offline) |
+|---------|-------------------|----------------------|
+| **Observation storage** | ✅ Full | ✅ Full (always local) |
+| **Full-text search (FTS5)** | ✅ Full | ✅ Full (local SQLite) |
+| **Semantic search (sqlite-vec)** | ✅ Full | ✅ Full (local embeddings) |
+| **Session timeline** | ✅ Full | ✅ Full |
+| **Context injection** | ✅ Full | ✅ Full (heuristic-based) |
+| **AI structuring** | ✅ Rich metadata (type, facts, concepts) | ⚠️ Heuristic fallback (rule-based) |
+| **AI compression** | ✅ Semantic summaries | ⚠️ Raw observations stored |
+| **Pattern detection** | ✅ AI + heuristic | ⚠️ Heuristic only |
+| **Web viewer** | ✅ Full | ✅ Full |
+| **MCP tools** | ✅ Full | ✅ Full |
+
+> **Privacy note:** When AI structuring is enabled, tool outputs are sent to the Moonshot API **after** applying 3-layer sanitization (system content stripped, secrets redacted, privacy tags removed). No raw credentials, tokens, or `<private>` blocks ever leave your machine. To keep everything 100% local, disable AI structuring in config.
 
 ### Who is this for?
 
@@ -48,7 +67,7 @@
 | 🔌 **Kimi Plugin Tools** | `mneme_search`, `mneme_timeline`, `mneme_get` — AI can query its own memory |
 | 🖇️ **MCP Server** | Claude Desktop, Cursor, Goose integration — 15 memory tools |
 | 📝 **PROJECT.md** | Auto-generated project context from structured observations |
-| 🔒 **Privacy Tags** | 3-layer filtering: strip system content → redact sensitive → deep sanitize |
+| 🔒 **Privacy Tags** | 3-layer filtering: strip system content → redact sensitive → deep sanitize (applied before any AI processing) |
 | 📊 **Knowledge Collections** | Curate and query project-specific knowledge corpora |
 | 🌳 **Tree-sitter Analyzer** | AST-based code exploration (Python, JS, TS, Rust, Go) |
 | 💰 **Token Economics** | See token savings and read cost per observation |
@@ -283,7 +302,7 @@ This merges with global config (project values override global).
 - **Kimi Code CLI**: 1.41+
 - **sqlite3 CLI**: Required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.)
 - **OS**: Windows, macOS, Linux
-- **Optional**: No API key needed — reuses Kimi CLI OAuth token
+- **Optional**: No API key needed — reuses Kimi CLI OAuth token. AI structuring/compression gracefully degrade to heuristic mode when offline
 
 ---
 

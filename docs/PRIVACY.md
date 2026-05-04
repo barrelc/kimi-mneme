@@ -55,6 +55,51 @@ Add to `~/.kimi/mneme/config.json`:
 | Passwords | ❌ No | Automatically excluded |
 | `<private>` blocks | ❌ No | Replaced with `[PRIVATE]` |
 
+## What Gets Sent to the AI API
+
+When AI structuring or compression is enabled, the following data is sent to the Moonshot API **after** sanitization:
+
+### AI Structuring (per observation)
+- **Tool name** — e.g., `WriteFile`, `Shell`
+- **Tool input** — first 500 chars (file paths, arguments)
+- **Tool output** — first 2000 chars (truncated, sanitized)
+- **Error message** — first 500 chars (if any)
+
+### AI Compression (per session)
+- **Formatted observation summaries** — tool names, file paths, first 500 chars of output per observation
+- **Session context** — accumulated observations from the session
+
+### Sanitization Pipeline (applied BEFORE API call)
+
+```
+Raw tool output
+    ↓
+[1] Strip system content — remove <system>, <system_instruction>, <system-reminder>
+    ↓
+[2] Redact sensitive patterns — API keys, tokens, passwords, private keys
+    ↓
+[3] Sanitize privacy tags — replace <private>...</private> with [PRIVATE]
+    ↓
+[4] Truncate — max 2000 chars for structuring, 500 per observation for compression
+    ↓
+Sent to API
+```
+
+### What NEVER leaves your machine
+
+| Data | Sent to API? | Reason |
+|------|-------------|--------|
+| Full file contents | ❌ No | Only paths extracted |
+| `<private>` blocks | ❌ No | Stripped before API call |
+| System instructions | ❌ No | Stripped before API call |
+| API keys / tokens | ❌ No | Redacted by regex patterns |
+| Private keys (PEM) | ❌ No | Redacted by regex patterns |
+| Passwords in URLs | ❌ No | Redacted by regex patterns |
+| GitHub tokens | ❌ No | Redacted by regex patterns |
+| Raw `~/.kimi/credentials` | ❌ No | Only OAuth token is read locally for auth |
+
+> **Important:** The OAuth token from `~/.kimi/credentials/kimi-code.json` is read locally and used only for API authentication. It is never included in the data sent for structuring or compression.
+
 ## Data Location
 
 All data is stored locally:
@@ -74,19 +119,39 @@ Nothing is sent to external servers except:
 - AI compression (if enabled, sent to Moonshot API)
 - You control the API key and can disable compression
 
-## Disabling Compression
+## Disabling AI Features (100% Local Mode)
 
-To keep everything 100% local:
+To keep everything 100% local with zero network calls:
 
 ```json
 {
+  "structuring": {
+    "enabled": false
+  },
   "compression": {
     "enabled": false
   }
 }
 ```
 
-Without compression, raw observations are stored. Search still works via full-text and vector search on raw content.
+Or via environment variable:
+
+```bash
+export MNEME_STRUCTURING_ENABLED=false
+```
+
+### Behavior without AI
+
+| Feature | Behavior |
+|---------|----------|
+| **Observation storage** | ✅ Raw tool outputs stored locally (always) |
+| **Structured metadata** | ⚠️ Heuristic fallback (rule-based type detection, title generation) |
+| **Search** | ✅ Full-text (FTS5) + semantic (sqlite-vec) work fully |
+| **Context injection** | ✅ Heuristic-based ranking and formatting |
+| **Pattern detection** | ⚠️ Regex-based only (no AI semantic analysis) |
+| **Session summaries** | ❌ Not generated (raw observations available instead) |
+
+> **Note:** Heuristic structuring provides ~80% of the value with zero network dependency. The main difference is less rich metadata (no AI-generated facts, concepts, or narratives) — search and retrieval still work perfectly.
 
 ## Deleting Data
 
