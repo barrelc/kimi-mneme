@@ -11,6 +11,10 @@ from pathlib import Path
 
 import click
 
+from mneme.compat import fix_windows_encoding
+
+fix_windows_encoding()
+
 
 def get_project_root() -> Path:
     """Get the project root directory (where mneme package lives).

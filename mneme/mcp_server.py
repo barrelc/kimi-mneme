@@ -6,6 +6,10 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from mneme.compat import fix_windows_encoding
+
+fix_windows_encoding()
+
 from mneme.db.structured_store import StructuredObservationStore
 from mneme.db.vector import SQLiteVecStore
 
