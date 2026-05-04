@@ -14,6 +14,7 @@ from mneme.compat import fix_windows_encoding
 fix_windows_encoding()
 
 from mneme.db.store import ObservationStore
+from mneme.db.wire_store import WireStore
 
 
 def main() -> None:
@@ -28,30 +29,69 @@ def main() -> None:
         project = params.get("project")
 
         store = ObservationStore()
-        results = store.search(
+        wire_store = WireStore()
+        
+        # Search observations
+        obs_results = store.search(
             query=query,
             limit=limit,
             date_from=date_from,
             date_to=date_to,
         )
 
+        # Also search wire events for richer context
+        wire_results = wire_store.search_wire_events(query=query, limit=limit)
+        
+        # Convert wire events to same format
+        for wr in wire_results:
+            # Skip if we already have this session in obs_results
+            if not any(r.get("session_id") == wr["session_id"] for r in obs_results):
+                import json as json_mod
+                try:
+                    payload = json_mod.loads(wr.get("payload_json", "{}"))
+                    # Extract meaningful text from payload
+                    text = ""
+                    if isinstance(payload, dict):
+                        if "content" in payload:
+                            text = str(payload["content"])[:200]
+                        elif "message" in payload:
+                            text = str(payload["message"])[:200]
+                        elif "tool_name" in payload:
+                            text = f"{payload['tool_name']}: {str(payload.get('tool_input', ''))[:100]}"
+                        else:
+                            text = str(payload)[:200]
+                    else:
+                        text = str(payload)[:200]
+                except Exception:
+                    text = wr.get("payload_json", "")[:200]
+                
+                obs_results.append({
+                    "id": f"wire_{wr['id']}",
+                    "session_id": wr["session_id"],
+                    "created_at": wr.get("timestamp"),
+                    "event_type": wr.get("event_type", "WireEvent"),
+                    "tool_name": None,
+                    "file_path": wr.get("session_cwd"),
+                    "snippet": text,
+                })
+
         # Filter by project if specified
         if project:
-            results = [
+            obs_results = [
                 r
-                for r in results
+                for r in obs_results
                 if project.lower() in r.get("session_id", "").lower()
                 or project.lower() in r.get("file_path", "").lower()
             ]
 
         # Format compact output
         compact_results = []
-        for r in results:
+        for r in obs_results[:limit]:
             compact_results.append(
                 {
                     "id": r["id"],
                     "session_id": r["session_id"],
-                    "timestamp": r["created_at"],
+                    "timestamp": r.get("created_at"),
                     "type": r["event_type"],
                     "tool_name": r.get("tool_name"),
                     "file_path": r.get("file_path"),

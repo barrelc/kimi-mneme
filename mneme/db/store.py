@@ -218,32 +218,98 @@ class ObservationStore:
         date_to: str | None = None,
         use_vector: bool = True,
     ) -> list[dict[str, Any]]:
-        """Hybrid search: FTS + vector similarity."""
+        """Hybrid search: FTS + fallback LIKE + vector similarity."""
+        # Build FTS query with OR between words for better recall
+        words = [w for w in query.strip().split() if len(w) > 2]
+        if words:
+            # Try exact phrase first, then individual words with OR
+            fts_query = f'"{query}" OR ' + " OR ".join(words) if len(words) > 1 else query
+        else:
+            fts_query = query
+
+        fts_results: list[dict[str, Any]] = []
+        
         # FTS search
         with self._get_conn() as conn:
-            sql = """
-                SELECT o.id, o.session_id, o.event_type, o.tool_name,
-                       o.file_path, o.created_at,
-                       snippet(observations_fts, 0, '[', ']', '...', 32) as snippet
-                FROM observations_fts
-                JOIN observations o ON observations_fts.rowid = o.id
-                WHERE observations_fts MATCH ?
-            """
-            params: list[Any] = [query]
+            try:
+                sql = """
+                    SELECT o.id, o.session_id, o.event_type, o.tool_name,
+                           o.file_path, o.created_at,
+                           snippet(observations_fts, 0, '[', ']', '...', 32) as snippet
+                    FROM observations_fts
+                    JOIN observations o ON observations_fts.rowid = o.id
+                    WHERE observations_fts MATCH ?
+                """
+                params: list[Any] = [fts_query]
 
-            if date_from:
-                sql += " AND o.created_at >= ?"
-                params.append(date_from)
-            if date_to:
-                sql += " AND o.created_at <= ?"
-                params.append(date_to)
+                if date_from:
+                    sql += " AND o.created_at >= ?"
+                    params.append(date_from)
+                if date_to:
+                    sql += " AND o.created_at <= ?"
+                    params.append(date_to)
 
-            sql += " ORDER BY rank LIMIT ?"
-            params.append(limit)
+                sql += " ORDER BY rank LIMIT ?"
+                params.append(limit)
 
-            rows = conn.execute(sql, params).fetchall()
+                rows = conn.execute(sql, params).fetchall()
+                fts_results = [dict(row) for row in rows]
+            except Exception as e:
+                logger.debug(f"FTS search failed, will use fallback: {e}")
 
-        fts_results = [dict(row) for row in rows]
+        # Fallback: LIKE search if FTS returns nothing
+        if not fts_results:
+            with self._get_conn() as conn:
+                like_pattern = f"%{query}%"
+                sql = """
+                    SELECT o.id, o.session_id, o.event_type, o.tool_name,
+                           o.file_path, o.created_at,
+                           SUBSTR(COALESCE(o.tool_output, o.error, o.prompt, o.tool_input, ''), 1, 200) as snippet
+                    FROM observations o
+                    WHERE (o.tool_output LIKE ? OR o.error LIKE ? OR o.prompt LIKE ? 
+                           OR o.tool_input LIKE ? OR o.tool_name LIKE ? OR o.file_path LIKE ?)
+                """
+                params = [like_pattern] * 6
+                
+                if date_from:
+                    sql += " AND o.created_at >= ?"
+                    params.append(date_from)
+                if date_to:
+                    sql += " AND o.created_at <= ?"
+                    params.append(date_to)
+                
+                sql += " ORDER BY o.created_at DESC LIMIT ?"
+                params.append(limit)
+                
+                rows = conn.execute(sql, params).fetchall()
+                fts_results = [dict(row) for row in rows]
+
+        # Also search sessions by ID or content
+        session_results = []
+        if len(fts_results) < limit:
+            with self._get_conn() as conn:
+                like_pattern = f"%{query}%"
+                rows = conn.execute("""
+                    SELECT DISTINCT s.id as session_id, s.cwd, s.summary,
+                           (SELECT COUNT(*) FROM observations WHERE session_id = s.id) as obs_count
+                    FROM sessions s
+                    WHERE s.id LIKE ? OR s.cwd LIKE ? OR s.summary LIKE ?
+                    LIMIT ?
+                """, (like_pattern, like_pattern, like_pattern, limit)).fetchall()
+                
+                for row in rows:
+                    # Check if we already have observations from this session
+                    has_obs = any(r.get("session_id") == row["session_id"] for r in fts_results)
+                    if not has_obs:
+                        session_results.append({
+                            "id": f"session_{row['session_id']}",
+                            "session_id": row["session_id"],
+                            "event_type": "SessionMatch",
+                            "tool_name": None,
+                            "file_path": row["cwd"],
+                            "created_at": None,
+                            "snippet": f"Session with {row['obs_count']} observations: {row['summary'] or row['cwd'] or row['session_id']}",
+                        })
 
         # Vector search
         vector_results = []
@@ -271,6 +337,14 @@ class ObservationStore:
                     }
                 )
                 seen_ids.add(obs_id)
+
+        # Add session results if we still have room
+        for sr in session_results:
+            if len(fts_results) >= limit:
+                break
+            if sr["id"] not in seen_ids:
+                fts_results.append(sr)
+                seen_ids.add(sr["id"])
 
         return fts_results[:limit]
 

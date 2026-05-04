@@ -85,6 +85,27 @@ class WireStore:
             rows = conn.execute(sql, params).fetchall()
         return [dict(row) for row in rows]
 
+    def search_wire_events(
+        self,
+        query: str,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Search wire events by payload content."""
+        like_pattern = f"%{query}%"
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT we.*, s.cwd as session_cwd
+                FROM wire_events we
+                JOIN sessions s ON we.session_id = s.id
+                WHERE we.payload_json LIKE ?
+                ORDER BY we.timestamp DESC
+                LIMIT ?
+                """,
+                (like_pattern, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     # ------------------------------------------------------------------
     # Session stats (StatusUpdate)
     # ------------------------------------------------------------------
