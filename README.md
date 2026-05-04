@@ -62,6 +62,10 @@
 
 ## Quick Start
 
+### Prerequisites
+
+- **sqlite3 CLI**: Required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.)
+
 ### Install via `uv tool` (recommended — permanent install)
 
 ```bash
