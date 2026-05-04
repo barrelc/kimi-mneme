@@ -42,7 +42,13 @@ def parse_wire_line(session_id: str, line: str) -> WireEvent | None:
     payload = msg.get("payload", {})
     timestamp = raw.get("timestamp", 0.0)
 
-    base = {"session_id": session_id, "timestamp": timestamp, "event_type": event_type, "payload": payload, "raw": raw}
+    base = {
+        "session_id": session_id,
+        "timestamp": timestamp,
+        "event_type": event_type,
+        "payload": payload,
+        "raw": raw,
+    }
 
     match event_type:
         case "TurnBegin":
