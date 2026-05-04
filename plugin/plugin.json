@@ -1,14 +1,14 @@
 {
   "name": "kimi-mneme",
-  "version": "2.0.0",
+  "version": "2.0.4",
   "description": "Persistent memory plugin for Kimi Code CLI \u2014 search and retrieve past session context. Part of the kimi-plugins ecosystem.",
   "tools": [
     {
       "name": "mneme_search",
       "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure.",
       "command": [
-        "C:\\Python313\\python.exe",
-        "C:\\Users\\barre\\Desktop\\kimi-mneme\\plugin\\tools\\search.py"
+        "python",
+        "tools/search.py"
       ],
       "parameters": {
         "type": "object",
@@ -55,8 +55,8 @@
       "name": "mneme_timeline",
       "description": "Get chronological context around a specific observation. Shows what happened before and after. Use after mneme_search to understand context.",
       "command": [
-        "C:\\Python313\\python.exe",
-        "C:\\Users\\barre\\Desktop\\kimi-mneme\\plugin\\tools\\timeline.py"
+        "python",
+        "tools/timeline.py"
       ],
       "parameters": {
         "type": "object",
@@ -80,8 +80,8 @@
       "name": "mneme_get",
       "description": "Fetch full observation details by IDs. Always batch multiple IDs in one call. Use as the final step after identifying relevant observations.",
       "command": [
-        "C:\\Python313\\python.exe",
-        "C:\\Users\\barre\\Desktop\\kimi-mneme\\plugin\\tools\\get.py"
+        "python",
+        "tools/get.py"
       ],
       "parameters": {
         "type": "object",

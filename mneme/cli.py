@@ -11,6 +11,7 @@ from pathlib import Path
 
 import click
 
+from mneme import __version__
 from mneme.compat import fix_windows_encoding
 
 fix_windows_encoding()
@@ -51,7 +52,7 @@ def get_mneme_dir() -> Path:
 
 
 @click.group()
-@click.version_option(version="1.1.0", prog_name="mneme")
+@click.version_option(version=__version__, prog_name="mneme")
 def main() -> None:
     """kimi-mneme — Persistent memory for Kimi Code CLI."""
     pass
@@ -454,7 +455,7 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
     python_exe = sys.executable
     plugin_json = {
         "name": "kimi-mneme",
-        "version": "1.1.0",
+        "version": __version__,
         "description": "Persistent memory plugin for Kimi Code CLI — search and retrieve past session context",
         "tools": [
             {
