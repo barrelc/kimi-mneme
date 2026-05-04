@@ -441,8 +441,6 @@ async function loadObservations() {
     const res = await fetch(`${API_BASE}/sessions?${params.toString()}`);
     const data = await res.json();
 
-    const container = document.getElementById('observations-stream');
-
     if (!data.sessions || data.sessions.length === 0) {
       container.innerHTML = `
         <div style="text-align: center; padding: 4rem; color: var(--text-dim);">

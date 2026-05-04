@@ -33,7 +33,10 @@ def temp_db():
     db.commit()
     db.close()
     yield db_path
-    # Cleanup
+    # Cleanup: reset singleton connection so next test gets a fresh one
+    from mneme.db.vector import SQLiteVecStore
+    SQLiteVecStore._singleton_conn = None
+    SQLiteVecStore._singleton_db_path = None
     try:
         Path(db_path).unlink(missing_ok=True)
     except PermissionError:
@@ -57,10 +60,22 @@ def sample_observation():
 
 def _close_store(store):
     """Close a store's connection to avoid SQLite locks."""
-    if hasattr(store._local, "conn") and store._local.conn:
+    # For StructuredObservationStore
+    if hasattr(store, '_local') and hasattr(store._local, "conn") and store._local.conn:
         store._local.conn.commit()
         store._local.conn.close()
         store._local.conn = None
+    # For SQLiteVecStore: reset singleton if this instance owns it
+    if hasattr(store, '_owns_singleton') and store._owns_singleton:
+        from mneme.db.vector import SQLiteVecStore
+        if SQLiteVecStore._singleton_conn:
+            try:
+                SQLiteVecStore._singleton_conn.commit()
+                SQLiteVecStore._singleton_conn.close()
+            except Exception:
+                pass
+            SQLiteVecStore._singleton_conn = None
+            SQLiteVecStore._singleton_db_path = None
 
 
 class TestSQLiteVecStore:

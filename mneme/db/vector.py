@@ -332,6 +332,10 @@ class SQLiteVecStore:
 
     Uses field-level embeddings (title, narrative, facts) for fine-grained
     semantic search. Falls back gracefully if sqlite-vec is not available.
+
+    IMPORTANT: sqlite-vec 0.1.x stores vec0 virtual table data IN-MEMORY
+    per connection. We use a process-level singleton connection to ensure
+    persistence across operations.
     """
 
     _VEC_TABLES = {
@@ -340,12 +344,19 @@ class SQLiteVecStore:
         "facts": "vec_facts",
     }
 
+    # Process-level singleton connection to ensure vec0 data persists
+    _singleton_conn: sqlite3.Connection | None = None
+    _singleton_lock = threading.Lock()
+    _singleton_db_path: str | None = None
+
     def __init__(self, db_path: str | None = None) -> None:
         config = load_config()
         self.db_path = db_path or config["db"]["path"]
         self.embedding_model = config["vector"]["embedding_model"]
         self._local = threading.local()
         self._vec_available = self._check_vec()
+        # Track whether this instance "owns" the singleton (for cleanup in tests)
+        self._owns_singleton = False
 
     def _check_vec(self) -> bool:
         """Check if sqlite-vec extension is available."""
@@ -361,8 +372,40 @@ class SQLiteVecStore:
             return False
 
     def _get_conn(self) -> sqlite3.Connection:
-        """Get thread-local connection with vec extension loaded."""
-        if not hasattr(self._local, "conn") or self._local.conn is None:
+        """Get singleton connection with vec extension loaded.
+
+        Uses a process-level singleton because sqlite-vec 0.1.x stores
+        vec0 data in-memory per connection. Creating a new connection
+        loses all previously inserted embeddings.
+        """
+        # Fast path: check if singleton exists, matches db_path, and is open
+        if (
+            SQLiteVecStore._singleton_conn is not None
+            and SQLiteVecStore._singleton_db_path == self.db_path
+        ):
+            # Verify connection is still open
+            try:
+                SQLiteVecStore._singleton_conn.execute("SELECT 1")
+                return SQLiteVecStore._singleton_conn
+            except Exception:
+                # Connection was closed — reset and recreate
+                SQLiteVecStore._singleton_conn = None
+                SQLiteVecStore._singleton_db_path = None
+
+        with SQLiteVecStore._singleton_lock:
+            # Double-check after acquiring lock
+            if (
+                SQLiteVecStore._singleton_conn is not None
+                and SQLiteVecStore._singleton_db_path == self.db_path
+            ):
+                try:
+                    SQLiteVecStore._singleton_conn.execute("SELECT 1")
+                    return SQLiteVecStore._singleton_conn
+                except sqlite3.ProgrammingError:
+                    SQLiteVecStore._singleton_conn = None
+                    SQLiteVecStore._singleton_db_path = None
+
+            # Create new singleton connection
             conn = get_connection(self.db_path)
             if self._vec_available:
                 try:
@@ -370,23 +413,37 @@ class SQLiteVecStore:
 
                     conn.enable_load_extension(True)
                     sqlite_vec.load(conn)
+                    conn.enable_load_extension(False)
                     # Ensure vec virtual tables exist
                     self._ensure_vec_tables(conn)
                 except Exception as e:
                     logger.warning(f"Failed to load sqlite-vec extension: {e}")
                     self._vec_available = False
-            self._local.conn = conn
-        return self._local.conn
+
+            SQLiteVecStore._singleton_conn = conn
+            SQLiteVecStore._singleton_db_path = self.db_path
+            self._owns_singleton = True
+            logger.debug(f"sqlite-vec: created singleton connection for {self.db_path}")
+            return conn
 
     def set_conn(self, conn: sqlite3.Connection) -> None:
-        """Use an existing connection (for sharing with StructuredObservationStore)."""
-        self._local.conn = conn
+        """Use an existing connection (for sharing with StructuredObservationStore).
+
+        NOTE: This replaces the singleton connection. Use with care.
+        The caller owns the connection lifecycle — we won't close it.
+        """
+        with SQLiteVecStore._singleton_lock:
+            # Don't close the old singleton — the caller manages their conn
+            SQLiteVecStore._singleton_conn = conn
+            SQLiteVecStore._singleton_db_path = self.db_path
+            self._owns_singleton = False  # We don't own this connection
         if self._vec_available:
             try:
                 import sqlite_vec
 
                 conn.enable_load_extension(True)
                 sqlite_vec.load(conn)
+                conn.enable_load_extension(False)
                 self._ensure_vec_tables(conn)
             except Exception as e:
                 logger.warning(f"Failed to load sqlite-vec extension: {e}")
@@ -512,6 +569,7 @@ class SQLiteVecStore:
                 logger.error(f"Failed to add fact vec: {e}")
 
         if count:
+            conn.commit()
             logger.debug(f"sqlite-vec: added {count} embeddings for so_{structured_id}")
         return count
 
@@ -715,6 +773,8 @@ class SQLiteVecStore:
                 total += cursor.rowcount
             except Exception as e:
                 logger.error(f"Failed to delete from {table}: {e}")
+        if total:
+            conn.commit()
         return total
 
     def get_stats(self) -> dict[str, Any]:
@@ -774,6 +834,7 @@ class SQLiteVecStore:
             """,
             ("structured_observations", last_id),
         )
+        conn.commit()
 
     def sync_pending(self, batch_size: int = 100) -> int:
         """Sync all pending structured observations to vec tables.
