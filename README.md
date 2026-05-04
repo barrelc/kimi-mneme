@@ -1,13 +1,22 @@
-# kimi-mneme
+# kimi-mneme — Persistent Memory Plugin for Kimi Code CLI
+
+[![PyPI](https://img.shields.io/pypi/v/kimi-mneme.svg)](https://pypi.org/project/kimi-mneme/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
+[![Kimi CLI](https://img.shields.io/badge/Kimi%20CLI-plugin-orange.svg)](https://moonshotai.github.io/kimi-cli/)
 
 > **Mneme** (Greek: Μνήμη) — the goddess of memory and the mother of the Muses.  
 > This project brings persistent, AI-compressed memory to [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/).
+
+**🏷️ Tags:** `kimi-plugin` `kimi-cli-plugin` `kimi-plugins` `persistent-memory` `ai-memory` `coding-assistant`
 
 ---
 
 ## What is kimi-mneme?
 
-**kimi-mneme** is a memory plugin for Kimi Code CLI that automatically captures your coding sessions, compresses them with AI, and injects relevant context into future sessions. Never lose track of what you were doing — even after days or weeks.
+**kimi-mneme** is a [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/) plugin that adds persistent memory to your coding sessions. It automatically captures context, compresses it with AI, and injects relevant past observations into future sessions. Never lose track of what you were doing — even after days or weeks.
+
+> 💡 **Looking for Kimi plugins?** This is an official-style plugin for the Kimi CLI ecosystem. Install with `uv tool install kimi-mneme` and run `mneme bootstrap` to get started.
 
 ### Key Features
 
@@ -95,6 +104,19 @@ kimi
 ```
 
 That's it. Every session is automatically captured and indexed. When you start a new session in a project, previous context is automatically injected.
+
+---
+
+## 🧩 Kimi Plugin Ecosystem
+
+**kimi-mneme** is part of the growing [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/) plugin ecosystem. Looking for more `kimi plugins`? This plugin extends Kimi CLI with:
+
+- **Persistent Memory** — context survives across sessions
+- **AI Tools** — `mneme_search`, `mneme_timeline`, `mneme_get` callable by Kimi AI
+- **Web Dashboard** — real-time memory viewer at `localhost:37777`
+- **MCP Server** — integrate with Claude Desktop, Cursor, Goose
+
+> 🔍 **Search terms:** `kimi plugin`, `kimi cli plugin`, `kimi plugins`, `kimi memory`, `kimi persistent memory`, `moonshot ai plugin`
 
 ### Search your memory
 
