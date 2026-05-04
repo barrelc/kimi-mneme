@@ -18,6 +18,8 @@ pip install -r requirements-dev.txt
 pip install -e .
 ```
 
+> **Note:** `sqlite3` CLI is required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.).
+
 ## Project Structure
 
 ```
@@ -245,8 +247,9 @@ export MNEME_LOG_LEVEL=DEBUG
 # Run hook manually with test data
 echo '{"session_id": "test", "cwd": "/tmp", "hook_event_name": "SessionStart", "source": "startup"}' | python hooks/session_start.py
 
-# Inspect database
-sqlite3 ~/.kimi/mneme/mneme.db "SELECT * FROM observations LIMIT 10;"
+# Inspect database (works without sqlite3 CLI)
+python -c "import sqlite3; conn=sqlite3.connect('~/.kimi/mneme/mneme.db'); [print(r) for r in conn.execute('SELECT * FROM observations LIMIT 10').fetchall()]"
+# Or if sqlite3 CLI is installed: sqlite3 ~/.kimi/mneme/mneme.db "SELECT * FROM observations LIMIT 10;"
 
 # Check vector store
 python -m mneme.db.vector_stats

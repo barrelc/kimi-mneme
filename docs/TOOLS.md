@@ -1,5 +1,7 @@
 # Tools Reference
 
+> **Note:** `sqlite3` CLI is required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.).
+
 kimi-mneme provides tools through three interfaces:
 
 1. **Kimi CLI Plugin** (3 tools) — `mneme_search`, `mneme_timeline`, `mneme_get`

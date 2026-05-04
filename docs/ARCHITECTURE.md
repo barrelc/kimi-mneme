@@ -115,6 +115,8 @@ Return to AI
 
 ### SQLite
 
+> **Note:** `sqlite3` CLI is required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.).
+
 ```sql
 -- Sessions table
 CREATE TABLE sessions (

@@ -68,6 +68,8 @@ All data is stored locally:
 └── mneme.log         # Log file
 ```
 
+> **Note:** `sqlite3` CLI is required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.).
+
 Nothing is sent to external servers except:
 - AI compression (if enabled, sent to Moonshot API)
 - You control the API key and can disable compression

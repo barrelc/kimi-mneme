@@ -79,6 +79,8 @@ Created automatically on first run with sensible defaults.
 
 ### Database
 
+> **Note:** `sqlite3` CLI is required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.).
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `db.path` | string | `~/.kimi/mneme/mneme.db` | SQLite database file path |

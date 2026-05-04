@@ -265,6 +265,7 @@ This merges with global config (project values override global).
 
 - **Python**: 3.10+
 - **Kimi Code CLI**: 1.41+
+- **sqlite3 CLI**: Required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.)
 - **OS**: Windows, macOS, Linux
 - **Optional**: No API key needed — reuses Kimi CLI OAuth token
 
