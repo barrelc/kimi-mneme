@@ -249,15 +249,22 @@ class WireStore:
         prompt: str | None = None,
         step_number: int | None = None,
         turn_number: int | None = None,
+        timestamp: float | None = None,
     ) -> int:
         """Add an observation record compatible with the old schema.
         
         Skips vector embedding for performance — wire events are indexed
         in bulk and vector search is secondary for trace data.
         """
+        from datetime import datetime, timezone
         from mneme.db.store import Observation, ObservationStore
 
         store = ObservationStore(self.db_path)
+        # Convert wire timestamp to ISO format for created_at
+        created_at = None
+        if timestamp:
+            created_at = datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+
         obs = Observation(
             session_id=session_id,
             event_type=event_type,
@@ -267,5 +274,6 @@ class WireStore:
             error=error,
             file_path=file_path,
             prompt=prompt,
+            created_at=created_at,
         )
         return store.add_observation(obs, skip_vector=True)

@@ -115,27 +115,53 @@ class ObservationStore:
         content_hash = self._hash_content(content) if content else None
 
         with self._get_conn() as conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO observations
-                (session_id, event_type, tool_name, tool_input, tool_output,
-                 error, file_path, prompt, agent_name, content_hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT DO NOTHING
-                """,
-                (
-                    observation.session_id,
-                    observation.event_type,
-                    observation.tool_name,
-                    observation.tool_input,
-                    observation.tool_output,
-                    observation.error,
-                    observation.file_path,
-                    observation.prompt,
-                    observation.agent_name,
-                    content_hash,
-                ),
-            )
+            # Use provided created_at or default to CURRENT_TIMESTAMP
+            created_at = observation.created_at
+            if created_at:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO observations
+                    (session_id, event_type, tool_name, tool_input, tool_output,
+                     error, file_path, prompt, agent_name, content_hash, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (
+                        observation.session_id,
+                        observation.event_type,
+                        observation.tool_name,
+                        observation.tool_input,
+                        observation.tool_output,
+                        observation.error,
+                        observation.file_path,
+                        observation.prompt,
+                        observation.agent_name,
+                        content_hash,
+                        created_at,
+                    ),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO observations
+                    (session_id, event_type, tool_name, tool_input, tool_output,
+                     error, file_path, prompt, agent_name, content_hash)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (
+                        observation.session_id,
+                        observation.event_type,
+                        observation.tool_name,
+                        observation.tool_input,
+                        observation.tool_output,
+                        observation.error,
+                        observation.file_path,
+                        observation.prompt,
+                        observation.agent_name,
+                        content_hash,
+                    ),
+                )
             obs_id = cursor.lastrowid
 
         if obs_id and not skip_vector:

@@ -52,6 +52,7 @@ class WireIndexer:
                         prompt=prompt_text,
                         turn_number=self._turns.get(sid),
                         step_number=0,
+                        timestamp=evt.timestamp,
                     )
             case _ if hasattr(evt, "step_number") and evt.step_number:
                 self._steps[sid] = max(self._steps.get(sid, 0), evt.step_number)
@@ -93,6 +94,7 @@ class WireIndexer:
                         tool_output=out,
                         turn_number=turn_n,
                         step_number=step_n,
+                        timestamp=evt.timestamp,
                     )
                 else:
                     self.store.add_observation_from_wire(
@@ -101,6 +103,7 @@ class WireIndexer:
                         tool_output=out,
                         turn_number=turn_n,
                         step_number=step_n,
+                        timestamp=evt.timestamp,
                     )
 
     def index_state(self, state: SessionState | None) -> None:
