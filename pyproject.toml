@@ -73,6 +73,7 @@ extend-exclude = ["*.js", "mneme/server/static/"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]
+per-file-ignores = { "hooks/*.py" = ["E402"], "plugin/tools/*.py" = ["E402"] }
 
 [tool.mypy]
 python_version = "3.10"

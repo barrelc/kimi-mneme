@@ -9,6 +9,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from mneme.compat import fix_windows_encoding
+
+fix_windows_encoding()
+
 from mneme.db.store import ObservationStore
 
 
