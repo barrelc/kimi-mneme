@@ -951,22 +951,6 @@ function renderLogDrawer() {
 function addLog(level, message) {
   const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-  // Add to legacy rightbar log
-  const stream = document.getElementById('log-stream');
-  if (stream) {
-    const entry = document.createElement('div');
-    entry.className = 'log-entry';
-    entry.innerHTML = `
-      <span class="log-time">${time}</span>
-      <span class="log-level log-level-${level}">${level.toUpperCase()}</span>
-      <span class="log-message">${escapeHtml(message)}</span>
-    `;
-    stream.insertBefore(entry, stream.firstChild);
-    while (stream.children.length > 100) {
-      stream.removeChild(stream.lastChild);
-    }
-  }
-
   // Add to drawer
   if (!logDrawerPaused) {
     logDrawerEntries.push({ level, message, time });
@@ -978,8 +962,6 @@ function addLog(level, message) {
   }
 
   logEntries.push({ level, message, time });
-  const countEl = document.getElementById('log-count');
-  if (countEl) countEl.textContent = `${logEntries.length} entries`;
 }
 
 // Utilities
