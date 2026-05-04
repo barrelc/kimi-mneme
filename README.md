@@ -114,6 +114,18 @@ mneme bootstrap
 - Creates the SQLite database at `~/.kimi/mneme/mneme.db`
 - Starts the web server on `http://localhost:37777`
 
+> **Recommended:** Install `sqlite3` CLI for database inspection and internal operations:
+> ```bash
+> # Linux (Debian/Ubuntu)
+> apt install sqlite3
+>
+> # macOS
+> brew install sqlite3
+>
+> # Windows
+> winget install SQLite.SQLite
+> ```
+
 ### Use Kimi CLI normally
 
 ```bash
