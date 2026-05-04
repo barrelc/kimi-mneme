@@ -78,7 +78,7 @@ class WireStore:
         if event_type:
             sql += " AND event_type = ?"
             params.append(event_type)
-        sql += " ORDER BY timestamp LIMIT ?"
+        sql += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
 
         with self._get_conn() as conn:
