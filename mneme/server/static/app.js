@@ -969,6 +969,11 @@ function addLog(level, message) {
 // Utilities
 function parseDate(dateStr) {
   if (!dateStr) return null;
+  // Unix timestamp (number from Python time.time())
+  if (typeof dateStr === 'number') {
+    const d = new Date(dateStr * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
   // Already ISO-8601 (has T or Z) — parse directly
   if (dateStr.includes('T') || dateStr.includes('Z')) {
     const d = new Date(dateStr);
