@@ -83,16 +83,15 @@ class SessionWatcher:
             return
         self._running = True
 
-        # Initial scan
-        self._scan_all()
-
-        # Start watchdog
+        # Start watchdog (lazy scan — only watch for new files)
         if self.sessions_dir.exists():
             handler = _WireEventHandler(self)
             self._observer = Observer()
             self._observer.schedule(handler, str(self.sessions_dir), recursive=True)
             self._observer.start()
             logger.info(f"SessionWatcher started on {self.sessions_dir}")
+            # Background scan existing sessions
+            threading.Thread(target=self._scan_all, daemon=True).start()
 
     def stop(self) -> None:
         """Stop watching."""
