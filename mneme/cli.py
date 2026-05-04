@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 import shutil
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ import click
 
 from mneme import __version__
 from mneme.compat import fix_windows_encoding
+from mneme.config import load_config
 
 fix_windows_encoding()
 
@@ -619,7 +621,15 @@ def _start_server() -> bool:
 @click.option("--interactive", "-i", is_flag=True, help="Open interactive SQL shell")
 @click.option("--csv", is_flag=True, help="Output as CSV")
 @click.option("--json-out", "json_out", is_flag=True, help="Output as JSON array")
-def sql(query: str | None, tables: bool, schema: str | None, file: str | None, interactive: bool, csv: bool, json_out: bool) -> None:
+def sql(
+    query: str | None,
+    tables: bool,
+    schema: str | None,
+    file: str | None,
+    interactive: bool,
+    csv: bool,
+    json_out: bool,
+) -> None:
     """Run SQL queries against the mneme SQLite database.
 
     Examples:
@@ -629,9 +639,6 @@ def sql(query: str | None, tables: bool, schema: str | None, file: str | None, i
         mneme sql --file script.sql
         mneme sql -i
     """
-    import sqlite3
-    from mneme.config import load_config
-
     config = load_config()
     db_path = config["db"]["path"]
 
@@ -645,7 +652,9 @@ def sql(query: str | None, tables: bool, schema: str | None, file: str | None, i
 
     try:
         if tables:
-            rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
+            rows = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+            ).fetchall()
             click.echo("Tables:")
             for r in rows:
                 click.echo(f"  {r['name']}")
@@ -701,6 +710,7 @@ def _print_sql_results(cursor, csv: bool, json_out: bool) -> None:
 
     if json_out:
         import json
+
         result = [dict(row) for row in rows]
         click.echo(json.dumps(result, ensure_ascii=False, indent=2, default=str))
         return
@@ -708,6 +718,7 @@ def _print_sql_results(cursor, csv: bool, json_out: bool) -> None:
     if csv:
         import csv
         import io
+
         out = io.StringIO()
         writer = csv.writer(out)
         writer.writerow(headers)
@@ -723,7 +734,7 @@ def _print_sql_results(cursor, csv: bool, json_out: bool) -> None:
             col_widths[i] = max(col_widths[i], len(cell))
 
     def _row_line(cells):
-        return " | ".join(c.ljust(w) for c, w in zip(cells, col_widths))
+        return " | ".join(c.ljust(w) for c, w in zip(cells, col_widths, strict=False))
 
     click.echo(_row_line(headers))
     click.echo("-" * (sum(col_widths) + 3 * (len(headers) - 1)))
@@ -734,10 +745,8 @@ def _print_sql_results(cursor, csv: bool, json_out: bool) -> None:
 
 def _interactive_sql_shell(conn: sqlite3.Connection) -> None:
     """Simple interactive SQL shell."""
-    try:
-        import readline
-    except ImportError:
-        pass  # Windows may not have readline
+    with contextlib.suppress(ImportError):
+        import readline  # noqa: F401
 
     click.echo("Interactive SQL shell. Type '.tables', '.schema TABLE', '.quit' or SQL.")
     while True:
@@ -753,13 +762,17 @@ def _interactive_sql_shell(conn: sqlite3.Connection) -> None:
             click.echo("Bye.")
             break
         if line == ".tables":
-            rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
+            rows = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+            ).fetchall()
             for r in rows:
                 click.echo(r["name"])
             continue
         if line.startswith(".schema "):
             table = line[8:].strip()
-            row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
+            row = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone()
             if row and row["sql"]:
                 click.echo(row["sql"])
             else:
@@ -787,6 +800,7 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     Safe to run multiple times — idempotent.
     """
     from mneme import __version__
+
     click.echo(" Bootstrapping kimi-mneme...")
     click.echo(f" Version: {__version__}")
     click.echo(f" Python: {sys.executable}")
