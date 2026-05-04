@@ -234,7 +234,8 @@ class ObservationStore:
             try:
                 sql = """
                     SELECT o.id, o.session_id, o.event_type, o.tool_name,
-                           o.file_path, o.created_at,
+                           o.file_path, o.created_at, o.prompt, o.tool_output,
+                           o.error, o.tool_input,
                            COALESCE(snippet(observations_fts, -1, '[', ']', '...', 32), '') as snippet
                     FROM observations_fts
                     JOIN observations o ON observations_fts.rowid = o.id
@@ -263,7 +264,8 @@ class ObservationStore:
                 like_pattern = f"%{query}%"
                 sql = """
                     SELECT o.id, o.session_id, o.event_type, o.tool_name,
-                           o.file_path, o.created_at,
+                           o.file_path, o.created_at, o.prompt, o.tool_output,
+                           o.error, o.tool_input,
                            SUBSTR(COALESCE(o.tool_output, o.error, o.prompt, o.tool_input, ''), 1, 200) as snippet
                     FROM observations o
                     WHERE (o.tool_output LIKE ? OR o.error LIKE ? OR o.prompt LIKE ?

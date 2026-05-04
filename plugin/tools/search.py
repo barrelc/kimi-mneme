@@ -50,6 +50,10 @@ def main() -> None:
             if not snippet:
                 snippet = " | ".join(
                     s for s in [
+                        r.get("prompt"),
+                        r.get("tool_output"),
+                        r.get("error"),
+                        r.get("tool_input"),
                         r.get("tool_name"),
                         r.get("file_path"),
                     ] if s
@@ -61,7 +65,7 @@ def main() -> None:
                 "type": r["event_type"],
                 "tool_name": r.get("tool_name"),
                 "file_path": r.get("file_path"),
-                "snippet": snippet,
+                "snippet": snippet[:200],
                 "source": "observation",
             })
 
