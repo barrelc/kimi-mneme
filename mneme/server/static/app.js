@@ -524,8 +524,6 @@ async function loadStructuredObservations() {
     const res = await fetch(`${API_BASE}/structured_observations?${params.toString()}`);
     const data = await res.json();
 
-    const container = document.getElementById('observations-stream');
-
     if (!data.observations || data.observations.length === 0) {
       container.innerHTML = `
         <div style="text-align: center; padding: 4rem; color: var(--text-dim);">
