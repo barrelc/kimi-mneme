@@ -30,7 +30,7 @@ jobs:
       - name: Publish to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PUPI }}
-        run: uv publish --skip-existing
+        run: uv publish --check-url https://pypi.org/simple/kimi-mneme/
 
       - name: Create GitHub Deployment
         if: success()
