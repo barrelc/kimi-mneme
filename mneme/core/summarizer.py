@@ -16,7 +16,9 @@ class FastSummarizer:
     def __init__(self) -> None:
         self.store = ObservationStore()
 
-    def get_project_brief(self, cwd: str, max_sessions: int = 3, current_session_id: str | None = None) -> str | None:
+    def get_project_brief(
+        self, cwd: str, max_sessions: int = 3, current_session_id: str | None = None
+    ) -> str | None:
         """Get a brief summary of recent project activity.
 
         Args:
@@ -40,7 +42,7 @@ class FastSummarizer:
             obs = self.store.get_observations_for_session(s["id"], limit=1)
             if obs:
                 sessions_with_obs.append(s)
-        
+
         sessions = sorted(
             sessions_with_obs,
             key=lambda s: s.get("started_at", ""),
@@ -71,7 +73,7 @@ class FastSummarizer:
         observations = self.store.get_observations_for_session(session_id, limit=50)
         if not observations:
             return None
-        
+
         obs_count = len(observations)
 
         # Extract user prompts
@@ -98,15 +100,12 @@ class FastSummarizer:
 
             # Detect writes via tool input
             inp = obs.get("tool_input", "")
-            if inp and "WriteFile" in str(obs.get("event_type", "")):
-                try:
-                    data = json.loads(inp) if isinstance(inp, str) else inp
-                    path = data.get("path", "")
-                    if path:
-                        files_written.add(path)
-                except Exception:
-                    pass
-            elif inp and "StrReplaceFile" in str(obs.get("event_type", "")):
+            if (
+                inp
+                and "WriteFile" in str(obs.get("event_type", ""))
+                or inp
+                and "StrReplaceFile" in str(obs.get("event_type", ""))
+            ):
                 try:
                     data = json.loads(inp) if isinstance(inp, str) else inp
                     path = data.get("path", "")
@@ -135,7 +134,8 @@ class FastSummarizer:
         if prompts:
             # Filter to meaningful prompts
             meaningful = [
-                p for p in prompts
+                p
+                for p in prompts
                 if len(p) > 10 and not p.startswith("/") and not p.startswith("!")
             ]
             if meaningful:
@@ -155,7 +155,7 @@ class FastSummarizer:
         # Files modified
         if files_written:
             modified = sorted(files_written)[-5:]  # Last 5 modified
-            file_str = ", ".join(f"`{f.split('/')[-1].split('\\')[-1]}`" for f in modified)
+            file_str = ", ".join("`{}`".format(f.split("/")[-1].split("\\")[-1]) for f in modified)
             parts.append(f"• **Изменено:** {file_str}")
 
         # Errors (brief)
@@ -186,6 +186,10 @@ class FastSummarizer:
 
         if all_files:
             recent = sorted(all_files)[-8:]
-            facts.append(f"Недавние файлы: {', '.join(f'`{f.split('/')[-1].split('\\')[-1]}`' for f in recent)}")
+            facts.append(
+                "Недавние файлы: {}".format(
+                    ", ".join("`{}`".format(f.split("/")[-1].split("\\")[-1]) for f in recent)
+                )
+            )
 
         return facts

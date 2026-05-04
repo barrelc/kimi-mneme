@@ -69,7 +69,7 @@ def server(port: int, host: str) -> None:
 def update() -> None:
     """Update hooks and config to latest version."""
     click.echo(" Updating kimi-mneme...")
-    
+
     # Re-run bootstrap steps
     steps = [
         ("Database", _init_database),
@@ -77,14 +77,13 @@ def update() -> None:
         ("Hooks", _register_hooks),
         ("Plugin", _install_plugin),
     ]
-    
-    all_ok = True
+
     for name, step in steps:
         click.echo(f"\n Step: {name}")
         click.echo("-" * 30)
         if not step():
-            all_ok = False
-    
+            click.echo(f"  Step '{name}' had issues, continuing...")
+
     click.echo("\n Update complete!")
     click.echo("Please restart Kimi CLI for changes to take effect.")
 
@@ -217,6 +216,8 @@ def _register_hooks() -> bool:
     hooks = [
         ("SessionStart", "session_start.py"),
         ("SessionEnd", "session_end.py"),
+        ("PreCompact", "pre_compact.py"),
+        ("PostCompact", "post_compact.py"),
         ("PostToolUse", "post_tool_use.py"),
         ("PostToolUseFailure", "post_tool_use_failure.py"),
         ("UserPromptSubmit", "user_prompt_submit.py"),
@@ -232,8 +233,9 @@ def _register_hooks() -> bool:
     hook_entries = []
     for event, script in hooks:
         script_path = stable_hooks_dir / script
-        # Use forward slashes in paths to avoid TOML escape issues on Windows
-        cmd = f"{python_exe} {script_path}".replace("\\", "/")
+        # Use forward slashes in paths to avoid TOML escape issues on Windows.
+        # Wrap paths in quotes to handle spaces (e.g. "Program Files" on Windows).
+        cmd = f'"{python_exe}" "{script_path}"'.replace("\\", "/")
         hook_entries.append(f'[[hooks]]\nevent = "{event}"\ncommand = "{cmd}"\n')
 
     hook_block = (
@@ -421,6 +423,7 @@ def _start_server() -> bool:
 
     # Check if already running
     import socket
+
     try:
         with socket.create_connection((host, port), timeout=1):
             click.echo(f" Server already running at http://{host}:{port}")
@@ -466,7 +469,7 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     Safe to run multiple times — idempotent.
     """
     click.echo(" Bootstrapping kimi-mneme...")
-    click.echo(f" Version: 1.1.0")
+    click.echo(" Version: 1.1.0")
     click.echo(f" Python: {sys.executable}")
     click.echo()
 

@@ -107,7 +107,6 @@ class SessionSummaryGenerator:
 
     def _generate_moonshot(self, prompt: str) -> dict[str, Any] | None:
         """Call Moonshot API for structured summary."""
-        import httpx
 
         response = httpx.post(
             "https://api.moonshot.cn/v1/chat/completions",
@@ -140,13 +139,13 @@ class SessionSummaryGenerator:
     def _parse_summary(self, content: str) -> dict[str, Any] | None:
         """Parse LLM response into structured summary."""
         # Try to extract JSON from markdown code blocks
-        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
         if json_match:
             content = json_match.group(1)
 
         # Try to find raw JSON object
         if not content.strip().startswith("{"):
-            json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+            json_match = re.search(r"(\{.*\})", content, re.DOTALL)
             if json_match:
                 content = json_match.group(1)
 
@@ -176,8 +175,14 @@ class SessionSummaryGenerator:
             "learned": str(parsed.get("learned", ""))[:500],
             "completed": str(parsed.get("completed", ""))[:500],
             "next_steps": str(parsed.get("next_steps", ""))[:500],
-            "files_read": parsed.get("files_read", []) if isinstance(parsed.get("files_read"), list) else [],
-            "files_edited": parsed.get("files_edited", []) if isinstance(parsed.get("files_edited"), list) else [],
+            "files_read": (
+                parsed.get("files_read", []) if isinstance(parsed.get("files_read"), list) else []
+            ),
+            "files_edited": (
+                parsed.get("files_edited", [])
+                if isinstance(parsed.get("files_edited"), list)
+                else []
+            ),
             "notes": str(parsed.get("notes", ""))[:500],
             "raw_summary": content,
         }

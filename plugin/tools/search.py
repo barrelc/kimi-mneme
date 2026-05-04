@@ -34,7 +34,8 @@ def main() -> None:
         # Filter by project if specified
         if project:
             results = [
-                r for r in results
+                r
+                for r in results
                 if project.lower() in r.get("session_id", "").lower()
                 or project.lower() in r.get("file_path", "").lower()
             ]
@@ -42,15 +43,17 @@ def main() -> None:
         # Format compact output
         compact_results = []
         for r in results:
-            compact_results.append({
-                "id": r["id"],
-                "session_id": r["session_id"],
-                "timestamp": r["created_at"],
-                "type": r["event_type"],
-                "tool_name": r.get("tool_name"),
-                "file_path": r.get("file_path"),
-                "snippet": r.get("snippet", ""),
-            })
+            compact_results.append(
+                {
+                    "id": r["id"],
+                    "session_id": r["session_id"],
+                    "timestamp": r["created_at"],
+                    "type": r["event_type"],
+                    "tool_name": r.get("tool_name"),
+                    "file_path": r.get("file_path"),
+                    "snippet": r.get("snippet", ""),
+                }
+            )
 
         output = {
             "results": compact_results,

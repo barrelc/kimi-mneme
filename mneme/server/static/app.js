@@ -171,7 +171,13 @@ function animateValue(id, target) {
 // Load observations
 async function loadObservations() {
   try {
-    // Build query params
+    // If a type filter is active (not 'all' or 'SessionStart'), load observations directly
+    if (currentFilter && currentFilter !== 'all' && currentFilter !== 'SessionStart') {
+      await loadFilteredObservations();
+      return;
+    }
+
+    // Build query params for sessions
     const params = new URLSearchParams();
     params.append('limit', '20');
     if (currentProject && currentProject !== 'all') {
@@ -200,6 +206,48 @@ async function loadObservations() {
   }
 }
 
+// Load observations filtered by event type
+async function loadFilteredObservations() {
+  try {
+    const params = new URLSearchParams();
+    params.append('limit', '50');
+    params.append('event_type', currentFilter);
+    if (currentProject && currentProject !== 'all') {
+      params.append('project', currentProject);
+    }
+
+    const res = await fetch(`${API_BASE}/observations?${params.toString()}`);
+    const data = await res.json();
+
+    const container = document.getElementById('observations-stream');
+
+    if (!data.observations || data.observations.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 4rem; color: var(--text-dim);">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">🌊</div>
+          <p>No ${formatFilterName(currentFilter)} observations found.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = data.observations.map(o => renderObservationCard(o)).join('');
+
+  } catch (err) {
+    addLog('error', `Failed to load filtered observations: ${err.message}`);
+  }
+}
+
+function formatFilterName(filter) {
+  const names = {
+    'UserPromptSubmit': 'prompt',
+    'PostToolUse': 'tool',
+    'PostToolUseFailure': 'error',
+    'SessionStart': 'session'
+  };
+  return names[filter] || filter;
+}
+
 // Search observations
 async function searchObservations(query) {
   try {
@@ -208,7 +256,13 @@ async function searchObservations(query) {
 
     const container = document.getElementById('observations-stream');
 
-    if (!data.results || data.results.length === 0) {
+    // Apply type filter to search results if active
+    let results = data.results || [];
+    if (currentFilter && currentFilter !== 'all' && currentFilter !== 'SessionStart') {
+      results = results.filter(r => (r.event_type || r.type) === currentFilter);
+    }
+
+    if (results.length === 0) {
       container.innerHTML = `
         <div style="text-align: center; padding: 4rem; color: var(--text-dim);">
           <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
@@ -218,7 +272,7 @@ async function searchObservations(query) {
       return;
     }
 
-    container.innerHTML = data.results.map(r => renderObservationCard(r)).join('');
+    container.innerHTML = results.map(r => renderObservationCard(r)).join('');
 
   } catch (err) {
     addLog('error', `Search failed: ${err.message}`);

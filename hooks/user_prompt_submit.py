@@ -18,7 +18,7 @@ def _extract_prompt_from_wire(session_id: str, cwd: str) -> str:
         sessions_dir = Path.home() / ".kimi" / "sessions"
         if not sessions_dir.exists():
             return ""
-        
+
         # Find the session directory
         for hash_dir in sessions_dir.iterdir():
             if not hash_dir.is_dir():
@@ -28,7 +28,7 @@ def _extract_prompt_from_wire(session_id: str, cwd: str) -> str:
                 wire_file = session_dir / "wire.jsonl"
                 if wire_file.exists():
                     # Read last TurnBegin event
-                    lines = wire_file.read_text(encoding="utf-8").strip().split("\n")
+                    lines = wire_file.read_text(encoding="utf-8").strip().splitlines()
                     for line in reversed(lines):
                         try:
                             event = json.loads(line)
@@ -55,20 +55,21 @@ def main() -> None:
         # Force UTF-8 encoding for stdin on Windows
         if sys.platform == "win32":
             import io
+
             sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
-        
+
         input_data = json.load(sys.stdin)
-        
+
         session_id = input_data.get("session_id", "")
         cwd = input_data.get("cwd", "")
         prompt = input_data.get("prompt", "")
-        
+
         # If prompt is empty, try to extract from wire.jsonl
         if not prompt and session_id:
             prompt = _extract_prompt_from_wire(session_id, cwd)
             if prompt:
                 input_data["prompt"] = prompt
-        
+
         extractor = Extractor()
         extractor.handle_user_prompt_submit(input_data)
 

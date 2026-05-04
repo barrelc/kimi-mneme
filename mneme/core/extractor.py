@@ -175,7 +175,9 @@ class Extractor:
                 observations = self.store.get_observations_for_session(session_id, limit=None)
 
                 if len(observations) < 3:
-                    logger.debug(f"Too few observations ({len(observations)}) to summarize for {session_id}")
+                    logger.debug(
+                        f"Too few observations ({len(observations)}) to summarize for {session_id}"
+                    )
                     return
 
                 generator = SessionSummaryGenerator()
@@ -299,21 +301,49 @@ class Extractor:
             f"Tool observation stored: {tool_name} ({'success' if success else 'failure'})"
         )
 
-    def handle_compaction_event(self, data: dict[str, Any]) -> None:
-        """Handle context compaction event from Kimi CLI.
+    def handle_pre_compact(self, data: dict[str, Any]) -> None:
+        """Handle PreCompact hook event from Kimi CLI.
 
-        This is called when the CLI compacts context mid-session.
-        We create a checkpoint so the session can resume with context.
+        Called before context compaction begins.
+        Records the token count before compaction.
         """
         session_id = data.get("session_id", "")
-        tokens_before = data.get("tokens_before")
-        tokens_after = data.get("tokens_after")
+        token_count = data.get("token_count")
+        trigger = data.get("trigger", "unknown")
+
+        # Store pre-compaction state temporarily (will be updated by PostCompact)
+        # We use a simple in-memory cache or pending message approach
+        # For simplicity, store as a pending compaction event
+        self._pending_compaction = {
+            "session_id": session_id,
+            "tokens_before": token_count,
+            "trigger": trigger,
+        }
+        logger.info(f"PreCompact: session={session_id}, tokens={token_count}, trigger={trigger}")
+
+    def handle_post_compact(self, data: dict[str, Any]) -> None:
+        """Handle PostCompact hook event from Kimi CLI.
+
+        Called after context compaction completes.
+        Records the compaction and creates a checkpoint.
+        """
+        session_id = data.get("session_id", "")
+        estimated_token_count = data.get("estimated_token_count")
+        trigger = data.get("trigger", "unknown")
+
+        # Get tokens_before from pending state if available
+        tokens_before = None
+        if (
+            hasattr(self, "_pending_compaction")
+            and self._pending_compaction.get("session_id") == session_id
+        ):
+            tokens_before = self._pending_compaction.get("tokens_before")
 
         # Record the compaction
         self.store.record_compaction(
             session_id=session_id,
             tokens_before=tokens_before,
-            tokens_after=tokens_after,
+            tokens_after=estimated_token_count,
         )
 
         # Get current observations to generate checkpoint summary
@@ -340,8 +370,8 @@ class Extractor:
 
         # Create a simple summary from recent observations
         summary_parts = ["Session checkpoint after context compaction."]
-        if tokens_before and tokens_after:
-            summary_parts.append(f"Tokens reduced from {tokens_before} to {tokens_after}.")
+        if tokens_before and estimated_token_count:
+            summary_parts.append(f"Tokens reduced from {tokens_before} to {estimated_token_count}.")
         summary_parts.append(f"Recent activity: {len(observations)} observations.")
 
         self.store.add_checkpoint(
@@ -350,11 +380,17 @@ class Extractor:
             key_decisions=key_decisions,
             open_tasks=open_tasks,
             checkpoint_type="compaction",
-            token_count=tokens_after,
+            token_count=estimated_token_count,
             observation_count=len(observations),
         )
 
-        logger.info(f"Compaction checkpoint created for session {session_id}")
+        # Clear pending state
+        if hasattr(self, "_pending_compaction"):
+            self._pending_compaction = {}
+
+        logger.info(
+            f"PostCompact: session={session_id}, estimated_tokens={estimated_token_count}, trigger={trigger}"
+        )
 
     def detect_and_store_patterns(self, session_id: str) -> None:
         """Detect patterns in session observations and store them.

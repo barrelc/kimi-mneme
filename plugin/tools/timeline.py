@@ -31,7 +31,9 @@ def main() -> None:
                 "type": obs["event_type"],
                 "tool_name": obs.get("tool_name"),
                 "file_path": obs.get("file_path"),
-                "snippet": (obs.get("tool_output") or obs.get("error") or obs.get("prompt") or "")[:200],
+                "snippet": (obs.get("tool_output") or obs.get("error") or obs.get("prompt") or "")[
+                    :200
+                ],
             }
 
         output = {

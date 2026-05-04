@@ -28,22 +28,22 @@ def _stop_server() -> None:
     """Stop the mneme web server if running."""
     config = load_config()
     server_cfg = config.get("server", {})
-    
+
     if not server_cfg.get("enabled", True):
         return
-    
+
     host = server_cfg.get("host", "127.0.0.1")
     port = server_cfg.get("port", 37777)
-    
+
     if not _is_server_running(host, port):
         return  # Already stopped
-    
+
     try:
         # Find and kill the uvicorn/mneme.server process
         if sys.platform == "win32":
             # Kill by port using netstat + taskkill
             result = subprocess.run(
-                ["netstat", "-ano", "|", "findstr", f":{port}"],
+                f"netstat -ano | findstr :{port}",
                 capture_output=True,
                 text=True,
                 shell=True,
@@ -72,7 +72,7 @@ def main() -> None:
 
         extractor = Extractor()
         extractor.handle_session_end(input_data)
-        
+
         # Stop server on session end
         _stop_server()
 

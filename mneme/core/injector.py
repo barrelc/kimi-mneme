@@ -42,15 +42,15 @@ class Injector:
 
         try:
             context_parts = []
-            total_chars = 0
-            max_chars = self.max_tokens * 4  # Rough estimate
+            total_tokens = 0
+            max_tokens = self.max_tokens
 
             # 1. Inject cross-session patterns (errors, fixes, decisions)
             patterns = self._get_relevant_patterns(cwd)
             if patterns:
                 patterns_context = self._format_patterns(patterns)
                 context_parts.append(patterns_context)
-                total_chars += len(patterns_context)
+                total_tokens += self._estimate_tokens(patterns_context)
 
             # 2. Get recent sessions for this project
             project_sessions = self.store.get_sessions_for_project(
@@ -89,12 +89,13 @@ class Injector:
                         continue
 
                     session_context = self._format_session(session, observations)
+                    session_tokens = self._estimate_tokens(session_context)
 
-                    if total_chars + len(session_context) > max_chars:
+                    if total_tokens + session_tokens > max_tokens:
                         break
 
                     context_parts.append(session_context)
-                    total_chars += len(session_context)
+                    total_tokens += session_tokens
 
             if not context_parts:
                 return None
@@ -285,6 +286,24 @@ class Injector:
             lines.append(f"- **{event}**{detail}")
 
         return "\n".join(lines)
+
+    @staticmethod
+    def _estimate_tokens(text: str) -> int:
+        """Estimate token count for mixed text (code + natural language).
+
+        Uses a character-category-aware heuristic:
+        - ASCII (code, English): ~4 chars/token
+        - Non-ASCII (Cyrillic, CJK): ~1.5 chars/token
+
+        This is more accurate than a flat multiplier, especially for
+        codebases with mixed languages.
+        """
+        if not text:
+            return 0
+        ascii_chars = sum(1 for c in text if ord(c) < 128)
+        non_ascii_chars = len(text) - ascii_chars
+        estimated = (ascii_chars / 4.0) + (non_ascii_chars / 1.5)
+        return max(1, int(estimated))
 
     def _wrap_context(self, context_parts: list[str]) -> str:
         """Wrap context parts in header/footer based on format."""

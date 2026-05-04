@@ -141,6 +141,46 @@ async def vector_search(
     }
 
 
+@router.get("/observations")
+async def get_observations(
+    event_type: str | None = Query(None, description="Filter by event type"),
+    project: str | None = Query(None, description="Filter by project name"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """List observations with optional filtering."""
+    store = ObservationStore()
+    with store._get_conn() as conn:
+        sql = """
+            SELECT o.*, s.project, s.cwd as session_cwd
+            FROM observations o
+            JOIN sessions s ON o.session_id = s.id
+            WHERE 1=1
+        """
+        params: list[Any] = []
+
+        if event_type:
+            sql += " AND o.event_type = ?"
+            params.append(event_type)
+
+        if project:
+            sql += " AND (s.project = ? OR s.cwd LIKE ?)"
+            params.extend([project, f"%{project}%"])
+
+        sql += " ORDER BY o.created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        rows = conn.execute(sql, params).fetchall()
+
+    return {
+        "observations": [dict(row) for row in rows],
+        "limit": limit,
+        "offset": offset,
+        "event_type": event_type,
+        "project": project,
+    }
+
+
 @router.get("/session/{session_id}")
 async def get_session(session_id: str) -> dict[str, Any]:
     """Get full session data with timeline, prompts, checkpoint, and pending work."""
@@ -148,9 +188,7 @@ async def get_session(session_id: str) -> dict[str, Any]:
 
     # Get session info
     with store._get_conn() as conn:
-        session_row = conn.execute(
-            "SELECT * FROM sessions WHERE id = ?", (session_id,)
-        ).fetchone()
+        session_row = conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
 
     if not session_row:
         raise HTTPException(status_code=404, detail="Session not found")
