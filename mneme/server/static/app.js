@@ -375,14 +375,16 @@ async function loadStats() {
 
     // Token economics (B.4 — real data from compaction events)
     const econ = data.token_economics || {};
-    const loaded = econ.tokens_loaded || 0;
-    const invested = econ.tokens_invested || 0;
-    const savings = econ.savings_percent || 0;
     const compactionCount = econ.compaction_count || 0;
+    const totalObs = econ.total_observations || 0;
+    const dropped = econ.observations_dropped || 0;
+    const preserved = econ.observations_preserved || 0;
 
-    document.getElementById('tokens-loaded').textContent = loaded.toLocaleString();
-    document.getElementById('tokens-invested').textContent = invested.toLocaleString();
+    // Show observations-based metrics (tokens not tracked yet)
+    document.getElementById('tokens-loaded').textContent = preserved.toLocaleString();
+    document.getElementById('tokens-invested').textContent = dropped.toLocaleString();
     const savingsEl = document.getElementById('tokens-savings');
+    const savings = totalObs > 0 ? Math.round((dropped / totalObs) * 100) : 0;
     savingsEl.textContent = `${savings}%`;
     savingsEl.className = 'economics-value economics-savings';
     if (savings >= 50) savingsEl.classList.add('high');
