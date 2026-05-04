@@ -18,6 +18,21 @@
 
 > 💡 **Looking for Kimi plugins?** This is an official-style plugin for the Kimi CLI ecosystem. Install with `uv tool install kimi-mneme` and run `mneme bootstrap` to get started.
 
+### Why kimi-mneme?
+
+- **Never lose context** — Your coding history survives across sessions, restarts, and even weeks of inactivity
+- **AI-powered memory** — Automatically structures raw tool outputs into searchable observations
+- **Zero configuration** — Works out of the box with Kimi Code CLI
+- **Privacy-first** — Local SQLite storage, no cloud dependencies
+- **Cross-platform** — Windows, macOS, Linux support
+
+### Who is this for?
+
+- Developers using [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/) who want persistent project memory
+- Teams working on complex codebases across multiple sessions
+- Anyone looking for `kimi plugins` to extend their CLI workflow
+- Users of [Moonshot AI](https://moonshot.ai/) ecosystem tools
+
 ### Key Features
 
 | Feature | Description |
