@@ -1,6 +1,6 @@
 # kimi-mneme — Persistent Memory Plugin for Kimi Code CLI
 
-[![PyPI](https://img.shields.io/pypi/v/kimi-mneme.svg)](https://pypi.org/project/kimi-mneme/)
+[![PyPI](https://img.shields.io/pypi/v/kimi-mneme.svg?cacheSeconds=60)](https://pypi.org/project/kimi-mneme/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Kimi CLI](https://img.shields.io/badge/Kimi%20CLI-plugin-orange.svg)](https://moonshotai.github.io/kimi-cli/)
