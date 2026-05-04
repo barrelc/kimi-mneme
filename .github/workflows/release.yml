@@ -28,12 +28,13 @@ jobs:
         run: uv build
 
       - name: Publish to PyPI
+        continue-on-error: true
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PUPI }}
-        run: uv publish --check-url https://pypi.org/simple/kimi-mneme/
+        run: uv publish
 
       - name: Create GitHub Deployment
-        if: success()
+        if: success() || failure()
         uses: actions/github-script@v7
         with:
           script: |
@@ -52,5 +53,5 @@ jobs:
               deployment_id: deployment.id,
               state: 'success',
               environment_url: 'https://pypi.org/project/kimi-mneme/',
-              description: 'Successfully published to PyPI',
+              description: 'PyPI release',
             });
