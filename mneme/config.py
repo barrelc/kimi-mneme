@@ -37,6 +37,7 @@ DEFAULT_CONFIG = {
         "max_results": 5,
         "recency_boost_days": 7,
         "format": "markdown",
+        "use_vector": False,
     },
     "server": {
         "enabled": True,

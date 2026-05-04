@@ -16,7 +16,9 @@ from mneme.db.vector import VectorStore
 class Injector:
     """Inject relevant past context into new sessions."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self, store: ObservationStore | None = None, use_vector: bool | None = None
+    ) -> None:
         config = load_config()
         self.enabled = config["injection"]["enabled"]
         self.max_tokens = config["injection"]["max_tokens"]
@@ -24,7 +26,10 @@ class Injector:
         self.max_results = config["injection"]["max_results"]
         self.recency_boost_days = config["injection"]["recency_boost_days"]
         self.format = config["injection"]["format"]
-        self.store = ObservationStore()
+        self.use_vector = (
+            use_vector if use_vector is not None else config["injection"].get("use_vector", False)
+        )
+        self.store = store if store is not None else ObservationStore()
         self.vector_store = VectorStore()
 
     def get_context(self, cwd: str, current_session_id: str | None = None) -> str | None:
@@ -71,14 +76,15 @@ class Injector:
                 # Rank sessions by relevance
                 ranked_sessions = self._rank_sessions(project_sessions, cwd)
 
-                # Also try vector search for semantic similarity
-                vector_sessions = self._vector_search_sessions(cwd)
-                if vector_sessions:
-                    # Merge vector results, avoiding duplicates
-                    existing_ids = {s["id"] for s in ranked_sessions}
-                    for vs in vector_sessions:
-                        if vs["id"] not in existing_ids:
-                            ranked_sessions.append(vs)
+                # Also try vector search for semantic similarity (optional, heavy)
+                if self.use_vector:
+                    vector_sessions = self._vector_search_sessions(cwd)
+                    if vector_sessions:
+                        # Merge vector results, avoiding duplicates
+                        existing_ids = {s["id"] for s in ranked_sessions}
+                        for vs in vector_sessions:
+                            if vs["id"] not in existing_ids:
+                                ranked_sessions.append(vs)
 
                 # Get observations from top sessions
                 for session in ranked_sessions[: self.max_results]:

@@ -7,7 +7,6 @@ import json
 import socket
 import subprocess
 import sys
-import traceback
 from pathlib import Path
 
 # Ensure mneme package is importable — it may be installed via uv tool
@@ -47,7 +46,8 @@ except ImportError:
 def _is_server_running(host: str, port: int) -> bool:
     """Check if the mneme server is already running."""
     try:
-        with socket.create_connection((host, port), timeout=1):
+        # Short timeout to avoid blocking Kimi CLI startup
+        with socket.create_connection((host, port), timeout=0.1):
             return True
     except OSError:
         return False
@@ -55,41 +55,23 @@ def _is_server_running(host: str, port: int) -> bool:
 
 def _start_server() -> None:
     """Start the mneme web server in background if not running."""
-    # Log to file for debugging
-    log_path = Path.home() / ".kimi" / "mneme" / "session_start.log"
-
     try:
         config = load_config()
         server_cfg = config.get("server", {})
 
         if not server_cfg.get("enabled", True):
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write("Server disabled in config\n")
             return
 
         if not server_cfg.get("auto_start", True):
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write("Auto-start disabled in config\n")
             return
 
         host = server_cfg.get("host", "127.0.0.1")
         port = server_cfg.get("port", 37777)
 
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"Checking server at {host}:{port}...\n")
-
         if _is_server_running(host, port):
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write("Server already running\n")
             return  # Already running
 
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write("Starting server...\n")
-
-        # Use the same Python executable that runs this hook
         python_exe = sys.executable
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"Python: {python_exe}\n")
 
         if sys.platform == "win32":
             # CREATE_NO_WINDOW — no console popup
@@ -107,14 +89,8 @@ def _start_server() -> None:
                 start_new_session=True,
             )
 
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write("Server started successfully\n")
-
-    except Exception as e:
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"ERROR starting server: {e}\n")
-            f.write(traceback.format_exc())
-            f.write("\n")
+    except Exception:
+        pass  # Fail silently — don't block Kimi CLI startup
 
 
 def main() -> None:

@@ -13,10 +13,29 @@ from mneme.db.store import ObservationStore
 class FastSummarizer:
     """Generate quick session summaries from observations."""
 
-    def __init__(self) -> None:
-        self.store = ObservationStore()
+    # Module-level cache: {cwd: (timestamp, result)}
+    _cache: dict[str, tuple[float, str | None]] = {}
+    _cache_ttl_seconds: float = 300  # 5 minutes
+
+    def __init__(self, store: ObservationStore | None = None) -> None:
+        self.store = store if store is not None else ObservationStore()
 
     def get_project_brief(
+        self, cwd: str, max_sessions: int = 3, current_session_id: str | None = None
+    ) -> str | None:
+        import time
+
+        # Check cache
+        now = time.time()
+        cached = FastSummarizer._cache.get(cwd)
+        if cached and (now - cached[0]) < FastSummarizer._cache_ttl_seconds:
+            return cached[1]
+
+        result = self._build_project_brief(cwd, max_sessions, current_session_id)
+        FastSummarizer._cache[cwd] = (now, result)
+        return result
+
+    def _build_project_brief(
         self, cwd: str, max_sessions: int = 3, current_session_id: str | None = None
     ) -> str | None:
         """Get a brief summary of recent project activity.
