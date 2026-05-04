@@ -77,3 +77,12 @@ docs/IMPLEMENTATION_PLAN.md
 *.jpeg
 *.gif
 
+# Temporary test scripts
+test_context.py
+test_db.py
+test_mneme.py
+test_path.py
+
+# uv lock file (library, not app)
+uv.lock
+
