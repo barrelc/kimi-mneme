@@ -362,6 +362,41 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX IF NOT EXISTS idx_session_todos_session ON session_todos(session_id);
         """,
     ),
+    (
+        14,
+        """
+        -- Deduplication: remove duplicate wire_events and add unique constraint
+        -- Step 1: Create temp table with deduplicated data
+        CREATE TABLE wire_events_dedup AS
+        SELECT MIN(id) as id, session_id, timestamp, event_type, 
+               MAX(step_number) as step_number, MAX(turn_number) as turn_number,
+               MAX(payload_json) as payload_json, MIN(created_at) as created_at
+        FROM wire_events
+        GROUP BY session_id, timestamp, event_type;
+
+        -- Step 2: Drop original and rename
+        DROP TABLE wire_events;
+        ALTER TABLE wire_events_dedup RENAME TO wire_events;
+
+        -- Step 3: Recreate indexes and constraints
+        CREATE INDEX idx_wire_events_session ON wire_events(session_id);
+        CREATE INDEX idx_wire_events_type ON wire_events(event_type);
+        CREATE INDEX idx_wire_events_timestamp ON wire_events(timestamp);
+        CREATE UNIQUE INDEX ux_wire_events_unique ON wire_events(session_id, timestamp, event_type);
+
+        -- Deduplicate session_stats (same timestamp + session should be unique)
+        CREATE TABLE session_stats_dedup AS
+        SELECT MIN(id) as id, session_id, timestamp, context_tokens, max_context_tokens,
+               input_cache_read, input_cache_creation, input_other, output_tokens,
+               message_id, plan_mode, MIN(created_at) as created_at
+        FROM session_stats
+        GROUP BY session_id, timestamp;
+        DROP TABLE session_stats;
+        ALTER TABLE session_stats_dedup RENAME TO session_stats;
+        CREATE INDEX idx_session_stats_session ON session_stats(session_id);
+        CREATE INDEX idx_session_stats_timestamp ON session_stats(timestamp);
+        """,
+    ),
 ]
 
 

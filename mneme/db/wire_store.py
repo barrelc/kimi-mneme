@@ -47,11 +47,11 @@ class WireStore:
     # ------------------------------------------------------------------
 
     def add_wire_event(self, event: WireEvent) -> int:
-        """Store a raw wire event."""
+        """Store a raw wire event. Skips duplicates via INSERT OR IGNORE."""
         with self._get_conn() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO wire_events
+                INSERT OR IGNORE INTO wire_events
                 (session_id, timestamp, event_type, step_number, turn_number, payload_json)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
