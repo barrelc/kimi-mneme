@@ -57,3 +57,8 @@ Thumbs.db
 # Project specific
 mneme-data/
 скрины/
+
+# Analysis docs (not for repo)
+docs/ANALYSIS_*.md
+docs/analysis/
+

@@ -692,7 +692,7 @@ function renderTimelineView(data) {
 }
 
 function buildSessionSummary({ session, prompts, errors, fileChanges, toolsUsed, checkpoint, pending, observations, aiSummary }) {
-  // If AI summary exists, use it (structured style)
+  // If AI summary exists, use it
   if (aiSummary) {
     return buildAISessionSummary({ session, aiSummary, toolsUsed, fileChanges, observations });
   }

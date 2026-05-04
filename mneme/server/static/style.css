@@ -2,7 +2,7 @@
 /* Unique design: ocean-deep glassmorphism with neumorphic accents */
 
 :root {
-  /* Ocean-deep palette — unique ocean-deep palette */
+  /* Ocean-deep palette — unique emerald-teal theme */
   --bg-deep: #0a1628;
   --bg-mid: #0d1f35;
   --bg-surface: rgba(13, 31, 53, 0.7);
@@ -409,7 +409,7 @@ body::before {
   border: 1px solid rgba(52, 211, 153, 0.3);
 }
 
-/* Observation type badges (structured style) */
+/* Observation type badges */
 .badge-bugfix {
   background: rgba(248, 113, 113, 0.12);
   color: #f87171;

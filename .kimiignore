@@ -1,0 +1,55 @@
+# Files and directories to exclude from Kimi CLI context
+# This reduces context window usage at session startup
+
+# Documentation (large, not needed for coding)
+docs/
+*.md
+
+# Static web assets (large, not needed for coding)
+mneme/server/static/
+server/static/
+*.css
+*.html
+*.js
+
+# Tests
+tests/
+
+# Scripts
+scripts/
+
+# Cache and build artifacts
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environment
+.venv/
+
+# Playwright logs
+.playwright-mcp/
+
+# Git
+.git/
+
+# Database
+*.db
+*.db-journal
+
+# Logs
+*.log
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+
+# Compiled
+*.exe
+*.dll
+*.so
+*.dylib
