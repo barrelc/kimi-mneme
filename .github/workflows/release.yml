@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  deployments: write
 
 jobs:
   pypi-publish:
@@ -29,5 +30,5 @@ jobs:
 
       - name: Publish to PyPI
         env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PUPI }}
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI }}
         run: uv publish
