@@ -68,6 +68,7 @@ docs/IMPLEMENTATION_PLAN.md
 
 # Kimi CLI / MCP
 .kimi/
+.kimiignore
 .playwright-mcp/
 
 # Screenshots / images
