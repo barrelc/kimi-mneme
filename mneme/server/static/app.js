@@ -217,14 +217,50 @@ function handleWireUpdate(sessionId, counts) {
 // Heatmap — unique visual element
 function initHeatmap() {
   const container = document.getElementById('heatmap');
+  container.innerHTML = '';
   for (let i = 0; i < 35; i++) {
     const cell = document.createElement('div');
     cell.className = 'heatmap-cell';
-    // Random activity level for demo
-    const level = Math.random() > 0.6 ? Math.floor(Math.random() * 4) + 1 : 0;
-    if (level > 0) cell.classList.add(`level-${level}`);
-    cell.title = `Day ${i + 1}: ${level} observations`;
+    cell.dataset.day = i;
     container.appendChild(cell);
+  }
+}
+
+async function updateHeatmap() {
+  try {
+    const res = await fetch(`${API_BASE}/sessions?limit=1000`);
+    const data = await res.json();
+    const sessions = data.sessions || [];
+
+    // Count observations per day for last 35 days
+    const dayCounts = new Array(35).fill(0);
+    const now = new Date();
+    const msPerDay = 86400000;
+
+    sessions.forEach(s => {
+      const started = s.started_at || s.created_at;
+      if (!started) return;
+      const d = new Date(started);
+      if (isNaN(d.getTime())) return;
+      const daysAgo = Math.floor((now - d) / msPerDay);
+      if (daysAgo >= 0 && daysAgo < 35) {
+        dayCounts[34 - daysAgo] += s.observation_count || 1;
+      }
+    });
+
+    // Find max for normalization
+    const maxCount = Math.max(...dayCounts, 1);
+
+    const cells = document.querySelectorAll('.heatmap-cell');
+    cells.forEach((cell, i) => {
+      cell.className = 'heatmap-cell';
+      const count = dayCounts[i] || 0;
+      const level = count === 0 ? 0 : Math.min(4, Math.ceil((count / maxCount) * 4));
+      if (level > 0) cell.classList.add(`level-${level}`);
+      cell.title = `${count} observations`;
+    });
+  } catch (e) {
+    // Ignore
   }
 }
 
@@ -322,10 +358,14 @@ async function loadStats() {
 
     document.getElementById('db-size').textContent = `${data.db_size_mb} MB`;
 
-    // Show structured filter pill if we have structured observations
+    // Update structured count and show filter pill
     try {
       const structRes = await fetch(`${API_BASE}/structured_stats`);
       const structData = await structRes.json();
+      const structuredCount = document.getElementById('structured-count');
+      if (structuredCount) {
+        structuredCount.textContent = structData.total || 0;
+      }
       if (structData.total > 0) {
         document.getElementById('filter-structured').style.display = '';
       }
@@ -349,11 +389,18 @@ async function loadStats() {
     else if (savings >= 20) savingsEl.classList.add('mid');
     else savingsEl.classList.add('low');
 
+    // Update queue status
+    const queue = data.queue || {};
+    updateQueueIndicator(queue);
+
     // Update rightbar economics with real data
     const compressionStatus = document.getElementById('compression-status');
     if (compressionStatus) {
       compressionStatus.textContent = compactionCount > 0 ? `${compactionCount} events` : 'No data';
     }
+
+    // Update heatmap
+    updateHeatmap();
 
   } catch (err) {
     addLog('error', `Failed to load stats: ${err.message}`);
