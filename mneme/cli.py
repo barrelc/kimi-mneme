@@ -433,6 +433,9 @@ def _start_server() -> bool:
 
     click.echo(" Starting web server...")
 
+    log_file = get_mneme_dir() / "server.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
     try:
         if sys.platform == "win32":
             # Use CREATE_NO_WINDOW instead of CREATE_NEW_CONSOLE to avoid popup
@@ -440,15 +443,18 @@ def _start_server() -> bool:
                 [sys.executable, "-m", "mneme.server"],
                 creationflags=subprocess.CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
             )
         else:
-            subprocess.Popen(
-                [sys.executable, "-m", "mneme.server"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
+            # Redirect stdout/stderr to log file so crashes are visible
+            with open(log_file, "a", encoding="utf-8") as lf:
+                lf.write("\n--- server start ---\n")
+                subprocess.Popen(
+                    [sys.executable, "-m", "mneme.server"],
+                    stdout=lf,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
 
         click.echo(f" Web server started at http://{host}:{port}")
         return True

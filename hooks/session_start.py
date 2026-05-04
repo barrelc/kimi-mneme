@@ -7,6 +7,7 @@ import json
 import socket
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Ensure mneme package is importable — it may be installed via uv tool
@@ -74,6 +75,8 @@ def _start_server() -> None:
             return  # Already running
 
         python_exe = sys.executable
+        log_file = Path.home() / ".kimi" / "mneme" / "server.log"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
 
         if sys.platform == "win32":
             # CREATE_NO_WINDOW — no console popup
@@ -81,15 +84,18 @@ def _start_server() -> None:
                 [python_exe, "-c", "from mneme.server.app import main; main()"],
                 creationflags=subprocess.CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
             )
         else:
-            subprocess.Popen(
-                [python_exe, "-m", "mneme.server"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
+            # Redirect stderr to log file so crashes are visible
+            with open(log_file, "a", encoding="utf-8") as lf:
+                lf.write(f"\n--- server start {datetime.now().isoformat()} ---\n")
+                subprocess.Popen(
+                    [python_exe, "-m", "mneme.server"],
+                    stdout=lf,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
 
     except Exception:
         pass  # Fail silently — don't block Kimi CLI startup
