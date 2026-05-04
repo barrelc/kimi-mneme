@@ -45,6 +45,15 @@ def main() -> None:
             date_to=date_to,
         )
         for r in obs_results:
+            snippet = r.get("snippet") or ""
+            # If snippet is empty (FTS returned null), build a fallback from available fields
+            if not snippet:
+                snippet = " | ".join(
+                    s for s in [
+                        r.get("tool_name"),
+                        r.get("file_path"),
+                    ] if s
+                ) or "(no preview)"
             all_results.append({
                 "id": r["id"],
                 "session_id": r["session_id"],
@@ -52,7 +61,7 @@ def main() -> None:
                 "type": r["event_type"],
                 "tool_name": r.get("tool_name"),
                 "file_path": r.get("file_path"),
-                "snippet": r.get("snippet", ""),
+                "snippet": snippet,
                 "source": "observation",
             })
 
