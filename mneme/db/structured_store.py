@@ -276,7 +276,7 @@ class StructuredObservationStore:
             try:
                 rows = conn.execute(
                     """
-                    SELECT so.*, snippet(structured_observations_fts, 0, '[', ']', '...', 32) as snippet
+                    SELECT so.*, snippet(structured_observations_fts, -1, '[', ']', '...', 32) as snippet
                     FROM structured_observations_fts
                     JOIN structured_observations so ON structured_observations_fts.rowid = so.id
                     WHERE structured_observations_fts MATCH ?

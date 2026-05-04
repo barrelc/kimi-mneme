@@ -90,7 +90,6 @@ class StructuringWorker:
     @staticmethod
     def _extract_project(cwd: str) -> str:
         """Extract project name from cwd."""
-        import os
         from pathlib import PurePath
 
         # Normalize separators so PurePath works cross-platform

@@ -235,7 +235,7 @@ class ObservationStore:
                 sql = """
                     SELECT o.id, o.session_id, o.event_type, o.tool_name,
                            o.file_path, o.created_at,
-                           snippet(observations_fts, 0, '[', ']', '...', 32) as snippet
+                           snippet(observations_fts, -1, '[', ']', '...', 32) as snippet
                     FROM observations_fts
                     JOIN observations o ON observations_fts.rowid = o.id
                     WHERE observations_fts MATCH ?
