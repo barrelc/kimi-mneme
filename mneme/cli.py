@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import shutil
 import subprocess
@@ -170,10 +171,10 @@ def reset(force: bool, keep_sessions: bool) -> None:
             click.echo(f"  Chroma: {chroma_path} ({chroma_size / 1024 / 1024:.1f} MB)")
         click.echo("\n Wire traces in ~/.kimi/sessions/ will be preserved.")
         click.echo(" They will be re-indexed when the server starts.\n")
-        
+
         if keep_sessions:
             click.echo(" Mode: --keep-sessions (session metadata preserved)")
-        
+
         confirm = click.prompt("Type 'reset' to confirm", type=str)
         if confirm != "reset":
             click.echo(" Cancelled")
@@ -202,20 +203,18 @@ def reset(force: bool, keep_sessions: bool) -> None:
             "observation_feedback", "patterns", "truncated_outputs",
             "user_prompts", "summaries"
         ]
-        
+
         # Also clear FTS
-        try:
+        with contextlib.suppress(Exception):
             conn.execute("DELETE FROM observations_fts")
-        except Exception:
-            pass
-        
+
         for table in tables_to_clear:
             try:
                 conn.execute(f"DELETE FROM {table}")
                 click.echo(f"  Cleared {table}")
             except Exception as e:
                 click.echo(f"  Could not clear {table}: {e}")
-        
+
         conn.commit()
         conn.execute("VACUUM")
         conn.close()

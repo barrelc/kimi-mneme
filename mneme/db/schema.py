@@ -368,7 +368,7 @@ MIGRATIONS: list[tuple[int, str]] = [
         -- Deduplication: remove duplicate wire_events and add unique constraint
         -- Step 1: Create temp table with deduplicated data
         CREATE TABLE wire_events_dedup AS
-        SELECT MIN(id) as id, session_id, timestamp, event_type, 
+        SELECT MIN(id) as id, session_id, timestamp, event_type,
                MAX(step_number) as step_number, MAX(turn_number) as turn_number,
                MAX(payload_json) as payload_json, MIN(created_at) as created_at
         FROM wire_events

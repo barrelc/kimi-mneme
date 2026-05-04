@@ -252,11 +252,12 @@ class WireStore:
         timestamp: float | None = None,
     ) -> int:
         """Add an observation record compatible with the old schema.
-        
+
         Skips vector embedding for performance — wire events are indexed
         in bulk and vector search is secondary for trace data.
         """
         from datetime import datetime, timezone
+
         from mneme.db.store import Observation, ObservationStore
 
         store = ObservationStore(self.db_path)

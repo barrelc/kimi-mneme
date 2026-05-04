@@ -9,7 +9,6 @@ from loguru import logger
 
 from mneme.config import load_config
 
-
 _CHROMA_BROKEN_WARNED = False
 
 
