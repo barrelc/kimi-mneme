@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from loguru import logger
+logger.remove()
+
 import json
 import socket
 import subprocess

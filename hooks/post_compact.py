@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from loguru import logger
+logger.remove()
+
 import json
 import sys
 from pathlib import Path
