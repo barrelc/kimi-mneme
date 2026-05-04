@@ -88,6 +88,7 @@ function initFilters() {
       document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
       currentFilter = pill.dataset.filter;
+      showSessionList();
       loadObservations();
     });
   });
@@ -171,6 +172,10 @@ function animateValue(id, target) {
 // Load observations
 async function loadObservations() {
   try {
+    // Ensure we are in list view, not timeline
+    document.getElementById('observations-stream').style.display = 'block';
+    document.getElementById('timeline-view').style.display = 'none';
+
     // If a type filter is active (not 'all' or 'SessionStart'), load observations directly
     if (currentFilter && currentFilter !== 'all' && currentFilter !== 'SessionStart') {
       await loadFilteredObservations();
@@ -209,6 +214,10 @@ async function loadObservations() {
 // Load observations filtered by event type
 async function loadFilteredObservations() {
   try {
+    // Ensure list view is visible
+    document.getElementById('observations-stream').style.display = 'block';
+    document.getElementById('timeline-view').style.display = 'none';
+
     const params = new URLSearchParams();
     params.append('limit', '50');
     params.append('event_type', currentFilter);
@@ -390,11 +399,22 @@ function addLog(level, message) {
 }
 
 // Utilities
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  // Already ISO-8601 (has T or Z) — parse directly
+  if (dateStr.includes('T') || dateStr.includes('Z')) {
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // SQLite format "YYYY-MM-DD HH:MM:SS" — treat as UTC then convert to local
+  const iso = dateStr.replace(' ', 'T') + 'Z';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function formatDate(dateStr) {
-  if (!dateStr) return 'Unknown';
-  // SQLite returns ISO format or local time — ensure proper parsing
-  const date = new Date(dateStr.replace(' ', 'T') + (dateStr.includes('T') || dateStr.includes('Z') ? '' : 'Z'));
-  if (isNaN(date.getTime())) return dateStr;
+  const date = parseDate(dateStr);
+  if (!date) return dateStr || 'Unknown';
 
   const now = new Date();
   const diff = now - date;
@@ -891,10 +911,8 @@ function buildLearnedSummary(toolsUsed, fileChanges, observations) {
 }
 
 function formatDateTime(dateStr) {
-  if (!dateStr) return '';
-  // Ensure proper parsing of SQLite datetime
-  const d = new Date(dateStr.replace(' ', 'T') + (dateStr.includes('T') || dateStr.includes('Z') ? '' : 'Z'));
-  if (isNaN(d.getTime())) return dateStr;
+  const d = parseDate(dateStr);
+  if (!d) return dateStr || '';
   return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 

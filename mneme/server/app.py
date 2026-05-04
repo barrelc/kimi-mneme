@@ -84,22 +84,42 @@ def create_app() -> FastAPI:
     # API routes
     app.include_router(router, prefix="/api")
 
+    # Custom StaticFiles with no-cache headers
+    class NoCacheStaticFiles(StaticFiles):
+        def file_response(self, *args: Any, **kwargs: Any) -> Any:
+            response = super().file_response(*args, **kwargs)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
+
     # Static files
     from pathlib import Path
 
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+        app.mount("/static", NoCacheStaticFiles(directory=str(static_dir)), name="static")
 
     # Serve main UI
     @app.get("/", response_class=HTMLResponse)
     async def root() -> str:
         from pathlib import Path
 
+        from starlette.responses import Response
+
         static_dir = Path(__file__).parent / "static"
         index_file = static_dir / "index.html"
         if index_file.exists():
-            return index_file.read_text(encoding="utf-8")
+            content = index_file.read_text(encoding="utf-8")
+            return Response(
+                content=content,
+                media_type="text/html",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
         return _default_html()
 
     # WebSocket for real-time updates
