@@ -255,8 +255,16 @@ class Injector:
         # Sort by score descending
         scored.sort(key=lambda s: s["_relevance_score"], reverse=True)
 
-        # Filter by min_relevance
-        filtered = [s for s in scored if s["_relevance_score"] >= self.min_relevance]
+        # Filter by min_relevance AND exact project match
+        # Only include sessions from the same project (exact CWD or same project name)
+        filtered = [
+            s for s in scored
+            if s["_relevance_score"] >= self.min_relevance
+            and (
+                s.get("cwd", "") == cwd
+                or os.path.basename(s.get("cwd", "").rstrip("/\\")) == project_name
+            )
+        ]
 
         # If filtering leaves nothing, return top results anyway
         return filtered if filtered else scored[: self.max_results]
