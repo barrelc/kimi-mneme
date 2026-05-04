@@ -42,6 +42,8 @@ except ImportError:
     from mneme.config import load_config
     from mneme.core.extractor import Extractor
 
+from mneme.wire.watcher import get_global_watcher
+
 
 def _is_server_running(host: str, port: int) -> bool:
     """Check if the mneme server is already running."""
@@ -98,6 +100,13 @@ def main() -> None:
     try:
         # Auto-start server if configured
         _start_server()
+
+        # Start wire watcher to index session traces from ~/.kimi/sessions/
+        try:
+            watcher = get_global_watcher()
+            watcher.start()
+        except Exception:
+            pass  # Fail silently — don't block Kimi CLI
 
         # Force UTF-8 encoding on Windows
         from mneme.compat import fix_windows_encoding

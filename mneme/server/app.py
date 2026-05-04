@@ -15,6 +15,7 @@ from loguru import logger
 from mneme.config import load_config
 from mneme.db.store import ObservationStore
 from mneme.server.routes import router
+from mneme.wire.watcher import get_global_watcher, stop_global_watcher
 
 
 # Global connection manager for WebSocket broadcasting
@@ -57,8 +58,15 @@ async def lifespan(app: FastAPI):
     logger.info(
         f"kimi-mneme server starting on {config['server']['host']}:{config['server']['port']}"
     )
+    # Start wire session watcher for indexing Kimi CLI traces
+    try:
+        watcher = get_global_watcher()
+        watcher.start()
+    except Exception:
+        logger.exception("Failed to start session watcher")
     yield
     logger.info("kimi-mneme server shutting down")
+    stop_global_watcher()
 
 
 def create_app() -> FastAPI:

@@ -213,14 +213,14 @@ def _register_hooks() -> bool:
     stable_hooks_dir = get_mneme_dir() / "hooks"
     stable_hooks_dir.mkdir(parents=True, exist_ok=True)
 
+    # Wire watcher (inside session_start.py) now indexes all session data
+    # from ~/.kimi/sessions/<hash>/<id>/wire.jsonl, making UserPromptSubmit,
+    # PostToolUse and PostToolUseFailure hooks redundant.
     hooks = [
         ("SessionStart", "session_start.py"),
         ("SessionEnd", "session_end.py"),
         ("PreCompact", "pre_compact.py"),
         ("PostCompact", "post_compact.py"),
-        ("PostToolUse", "post_tool_use.py"),
-        ("PostToolUseFailure", "post_tool_use_failure.py"),
-        ("UserPromptSubmit", "user_prompt_submit.py"),
     ]
 
     for _, script in hooks:

@@ -285,6 +285,83 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX IF NOT EXISTS idx_session_summaries_created ON session_summaries(created_at);
         """,
     ),
+    (
+        13,
+        """
+        -- Wire event stream (full Kimi CLI trace)
+        CREATE TABLE IF NOT EXISTS wire_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            timestamp REAL,
+            event_type TEXT NOT NULL,
+            step_number INTEGER,
+            turn_number INTEGER,
+            payload_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_wire_events_session ON wire_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_wire_events_type ON wire_events(event_type);
+        CREATE INDEX IF NOT EXISTS idx_wire_events_timestamp ON wire_events(timestamp);
+
+        -- Session statistics from StatusUpdate
+        CREATE TABLE IF NOT EXISTS session_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            timestamp REAL,
+            context_tokens INTEGER,
+            max_context_tokens INTEGER,
+            input_cache_read INTEGER,
+            input_cache_creation INTEGER,
+            input_other INTEGER,
+            output_tokens INTEGER,
+            message_id TEXT,
+            plan_mode INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_stats_session ON session_stats(session_id);
+        CREATE INDEX IF NOT EXISTS idx_session_stats_timestamp ON session_stats(timestamp);
+
+        -- Agent thinking blocks
+        CREATE TABLE IF NOT EXISTS thinking (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            turn_number INTEGER,
+            step_number INTEGER,
+            content TEXT NOT NULL,
+            timestamp REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_thinking_session ON thinking(session_id);
+
+        -- Assistant responses
+        CREATE TABLE IF NOT EXISTS assistant_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            turn_number INTEGER,
+            step_number INTEGER,
+            content TEXT NOT NULL,
+            timestamp REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_assistant_messages_session ON assistant_messages(session_id);
+
+        -- Session todos from state.json
+        CREATE TABLE IF NOT EXISTS session_todos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            position INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_todos_session ON session_todos(session_id);
+        """,
+    ),
 ]
 
 

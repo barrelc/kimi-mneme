@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from mneme.db.store import ObservationStore
 from mneme.db.vector import VectorStore
+from mneme.db.wire_store import WireStore
 
 router = APIRouter()
 
@@ -231,3 +232,58 @@ async def get_session(session_id: str) -> dict[str, Any]:
         "compactions": compactions,
         "ai_summary": ai_summary,
     }
+
+
+@router.get("/wire_events")
+async def get_wire_events(
+    session_id: str = Query(..., description="Session ID"),
+    event_type: str | None = Query(None, description="Filter by event type"),
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    """Get wire events for a session."""
+    store = WireStore()
+    events = store.get_wire_events(session_id, event_type=event_type, limit=limit)
+    return {"events": events, "session_id": session_id, "event_type": event_type}
+
+
+@router.get("/session_stats")
+async def get_session_stats(
+    session_id: str = Query(..., description="Session ID"),
+) -> dict[str, Any]:
+    """Get token usage and context statistics for a session."""
+    store = WireStore()
+    stats = store.get_session_stats(session_id)
+    latest = store.get_latest_session_stat(session_id)
+    return {"stats": stats, "latest": latest, "session_id": session_id}
+
+
+@router.get("/thinking")
+async def get_thinking(
+    session_id: str = Query(..., description="Session ID"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict[str, Any]:
+    """Get agent thinking blocks for a session."""
+    store = WireStore()
+    items = store.get_thinking(session_id, limit=limit)
+    return {"thinking": items, "session_id": session_id}
+
+
+@router.get("/assistant_messages")
+async def get_assistant_messages(
+    session_id: str = Query(..., description="Session ID"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict[str, Any]:
+    """Get assistant responses for a session."""
+    store = WireStore()
+    items = store.get_assistant_messages(session_id, limit=limit)
+    return {"messages": items, "session_id": session_id}
+
+
+@router.get("/todos")
+async def get_todos(
+    session_id: str = Query(..., description="Session ID"),
+) -> dict[str, Any]:
+    """Get session todos from state.json."""
+    store = WireStore()
+    items = store.get_todos(session_id)
+    return {"todos": items, "session_id": session_id}

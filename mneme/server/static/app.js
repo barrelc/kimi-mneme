@@ -178,6 +178,14 @@ async function loadObservations() {
 
     // If a type filter is active (not 'all' or 'SessionStart'), load observations directly
     if (currentFilter && currentFilter !== 'all' && currentFilter !== 'SessionStart') {
+      if (currentFilter === 'thinking') {
+        await loadThinking();
+        return;
+      }
+      if (currentFilter === 'assistant') {
+        await loadAssistantMessages();
+        return;
+      }
       await loadFilteredObservations();
       return;
     }
@@ -252,9 +260,92 @@ function formatFilterName(filter) {
     'UserPromptSubmit': 'prompt',
     'PostToolUse': 'tool',
     'PostToolUseFailure': 'error',
-    'SessionStart': 'session'
+    'SessionStart': 'session',
+    'thinking': 'thinking',
+    'assistant': 'assistant'
   };
   return names[filter] || filter;
+}
+
+// Load thinking blocks
+async function loadThinking() {
+  try {
+    document.getElementById('observations-stream').style.display = 'block';
+    document.getElementById('timeline-view').style.display = 'none';
+
+    // We need a session to show thinking — for now show latest session's thinking
+    const sessionsRes = await fetch(`${API_BASE}/sessions?limit=1`);
+    const sessionsData = await sessionsRes.json();
+    if (!sessionsData.sessions || sessionsData.sessions.length === 0) {
+      document.getElementById('observations-stream').innerHTML = `<div style="text-align:center;padding:4rem;color:var(--text-dim)"><div style="font-size:3rem;margin-bottom:1rem">🧠</div><p>No thinking data yet.</p></div>`;
+      return;
+    }
+    const sessionId = sessionsData.sessions[0].id;
+    const res = await fetch(`${API_BASE}/thinking?session_id=${sessionId}&limit=50`);
+    const data = await res.json();
+
+    const container = document.getElementById('observations-stream');
+    if (!data.thinking || data.thinking.length === 0) {
+      container.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--text-dim)"><div style="font-size:3rem;margin-bottom:1rem">🧠</div><p>No thinking blocks found.</p></div>`;
+      return;
+    }
+
+    container.innerHTML = data.thinking.map(t => `
+      <div class="observation-card" style="border-left: 3px solid #a78bfa;">
+        <div class="card-header">
+          <div class="card-badges">
+            <span class="badge-pill" style="background: rgba(167,139,250,0.2); color: #a78bfa;">THINKING</span>
+          </div>
+          <span class="card-meta">${formatDate(t.timestamp)}</span>
+        </div>
+        <div class="card-body">
+          <p style="color: var(--text-secondary); font-style: italic;">${escapeHtml(t.content)}</p>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    addLog('error', `Failed to load thinking: ${err.message}`);
+  }
+}
+
+// Load assistant messages
+async function loadAssistantMessages() {
+  try {
+    document.getElementById('observations-stream').style.display = 'block';
+    document.getElementById('timeline-view').style.display = 'none';
+
+    const sessionsRes = await fetch(`${API_BASE}/sessions?limit=1`);
+    const sessionsData = await sessionsRes.json();
+    if (!sessionsData.sessions || sessionsData.sessions.length === 0) {
+      document.getElementById('observations-stream').innerHTML = `<div style="text-align:center;padding:4rem;color:var(--text-dim)"><div style="font-size:3rem;margin-bottom:1rem">🤖</div><p>No assistant messages yet.</p></div>`;
+      return;
+    }
+    const sessionId = sessionsData.sessions[0].id;
+    const res = await fetch(`${API_BASE}/assistant_messages?session_id=${sessionId}&limit=50`);
+    const data = await res.json();
+
+    const container = document.getElementById('observations-stream');
+    if (!data.messages || data.messages.length === 0) {
+      container.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--text-dim)"><div style="font-size:3rem;margin-bottom:1rem">🤖</div><p>No assistant messages found.</p></div>`;
+      return;
+    }
+
+    container.innerHTML = data.messages.map(m => `
+      <div class="observation-card" style="border-left: 3px solid #38bdf8;">
+        <div class="card-header">
+          <div class="card-badges">
+            <span class="badge-pill" style="background: rgba(56,189,248,0.2); color: #38bdf8;">ASSISTANT</span>
+          </div>
+          <span class="card-meta">${formatDate(m.timestamp)}</span>
+        </div>
+        <div class="card-body">
+          <p>${escapeHtml(m.content)}</p>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    addLog('error', `Failed to load assistant messages: ${err.message}`);
+  }
 }
 
 // Search observations
