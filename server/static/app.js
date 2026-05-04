@@ -258,8 +258,8 @@ function renderObservationCard(obs) {
         ${bodyContent}
       </div>
       <div class="card-footer">
-        <span class="card-action" onclick="viewObservation(${obs.id})">👁 View</span>
-        <span class="card-action" onclick="copyId(${obs.id})">📋 Copy ID</span>
+        <span class="card-action" onclick="viewObservation(${obs.id || 0})">👁 View</span>
+        <span class="card-action" onclick="copyId(${obs.id || 0})">📋 Copy ID</span>
       </div>
     </div>
   `;
@@ -560,12 +560,21 @@ function viewDetails(sessionId) {
 }
 
 async function viewObservation(id) {
+  if (!id || id === 0) {
+    addLog('error', 'Invalid observation ID');
+    return;
+  }
   addLog('info', `Viewing observation #${id}`);
   
   try {
     const resp = await fetch(`${API_BASE}/observation/${id}`);
-    if (!resp.ok) throw new Error('Failed to load');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const obs = await resp.json();
+    
+    if (!obs || !obs.id) {
+      addLog('error', 'Observation data is empty');
+      return;
+    }
     
     showObservationModal(obs);
   } catch (e) {

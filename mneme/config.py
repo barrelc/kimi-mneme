@@ -32,9 +32,9 @@ DEFAULT_CONFIG = {
     },
     "injection": {
         "enabled": True,
-        "max_tokens": 6000,
+        "max_tokens": 2500,
         "min_relevance": 0.7,
-        "max_results": 5,
+        "max_results": 3,
         "recency_boost_days": 7,
         "format": "markdown",
         "use_vector": False,

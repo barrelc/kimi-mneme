@@ -89,7 +89,7 @@ class Injector:
                 # Get observations from top sessions
                 for session in ranked_sessions[: self.max_results]:
                     session_id = session["id"]
-                    observations = self.store.get_observations_for_session(session_id, limit=10)
+                    observations = self.store.get_observations_for_session(session_id, limit=5)
 
                     if not observations:
                         continue
@@ -286,7 +286,7 @@ class Injector:
 
             content = obs.get("tool_output") or obs.get("error") or obs.get("prompt") or ""
             if content:
-                content = content[:200] + "..." if len(content) > 200 else content
+                content = content[:80] + "..." if len(content) > 80 else content
                 detail += f": {content}"
 
             lines.append(f"- **{event}**{detail}")

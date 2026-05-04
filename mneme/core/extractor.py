@@ -39,7 +39,7 @@ class Extractor:
         from mneme.core.summarizer import FastSummarizer
 
         summarizer = FastSummarizer(store=self.store)
-        brief = summarizer.get_project_brief(cwd, max_sessions=2, current_session_id=session_id)
+        brief = summarizer.get_project_brief(cwd, max_sessions=1, current_session_id=session_id)
 
         # 2. Full context injection — vector search disabled by default for speed
         from mneme.core.injector import Injector

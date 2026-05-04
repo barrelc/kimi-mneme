@@ -21,7 +21,7 @@ class FastSummarizer:
         self.store = store if store is not None else ObservationStore()
 
     def get_project_brief(
-        self, cwd: str, max_sessions: int = 3, current_session_id: str | None = None
+        self, cwd: str, max_sessions: int = 2, current_session_id: str | None = None
     ) -> str | None:
         import time
 
@@ -89,7 +89,7 @@ class FastSummarizer:
         started = session.get("started_at", "")
 
         # Get observations (don't trust observation_count, fetch directly)
-        observations = self.store.get_observations_for_session(session_id, limit=50)
+        observations = self.store.get_observations_for_session(session_id, limit=15)
         if not observations:
             return None
 
@@ -162,7 +162,7 @@ class FastSummarizer:
                 latest = meaningful[-3:]
                 for p in latest:
                     # Truncate long prompts
-                    short = p[:120] + "..." if len(p) > 120 else p
+                    short = p[:60] + "..." if len(p) > 60 else p
                     parts.append(f"• **Запрос:** {short}")
 
         # Tools used (if no good prompts)
