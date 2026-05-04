@@ -143,6 +143,117 @@ def stats() -> None:
             click.echo(f"  {p['project']}: {p['count']} sessions")
 
 
+@main.command()
+@click.option("--force", is_flag=True, help="Skip confirmation prompt")
+@click.option("--keep-sessions", is_flag=True, help="Keep session metadata, delete only observations and wire events")
+def reset(force: bool, keep_sessions: bool) -> None:
+    """Reset database — delete all data and start fresh.
+
+    Wire traces on disk are preserved and will be re-indexed on next server start.
+    Use --keep-sessions to preserve session list while clearing observations.
+    """
+    from mneme.config import load_config
+
+    config = load_config()
+    db_path = Path(config["db"]["path"])
+    chroma_path = Path(config["vector"]["path"])
+
+    if not db_path.exists():
+        click.echo(" Database does not exist, nothing to reset")
+        return
+
+    if not force:
+        click.echo(" This will DELETE all data from the database!")
+        click.echo(f"  DB: {db_path} ({db_path.stat().st_size / 1024 / 1024:.1f} MB)")
+        if chroma_path.exists():
+            chroma_size = sum(f.stat().st_size for f in chroma_path.rglob("*") if f.is_file())
+            click.echo(f"  Chroma: {chroma_path} ({chroma_size / 1024 / 1024:.1f} MB)")
+        click.echo("\n Wire traces in ~/.kimi/sessions/ will be preserved.")
+        click.echo(" They will be re-indexed when the server starts.\n")
+        
+        if keep_sessions:
+            click.echo(" Mode: --keep-sessions (session metadata preserved)")
+        
+        confirm = click.prompt("Type 'reset' to confirm", type=str)
+        if confirm != "reset":
+            click.echo(" Cancelled")
+            return
+
+    # Stop server if running
+    click.echo(" Stopping server if running...")
+    import urllib.request
+    try:
+        urllib.request.urlopen("http://127.0.0.1:37777/api/health", timeout=2)
+        # Server is running, we can't safely delete while it's up
+        click.echo(" Server is running. Please stop it first:")
+        click.echo("   Get-Process python | Where-Object {$_.Path -like '*mneme*'} | Stop-Process")
+        return
+    except Exception:
+        pass  # Server not running, safe to proceed
+
+    if keep_sessions:
+        # Delete only observations and wire data, keep sessions table
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        tables_to_clear = [
+            "observations", "wire_events", "session_stats", "thinking",
+            "assistant_messages", "session_todos", "session_summaries",
+            "session_checkpoints", "compaction_events", "pending_messages",
+            "observation_feedback", "patterns", "truncated_outputs",
+            "user_prompts", "summaries"
+        ]
+        
+        # Also clear FTS
+        try:
+            conn.execute("DELETE FROM observations_fts")
+        except Exception:
+            pass
+        
+        for table in tables_to_clear:
+            try:
+                conn.execute(f"DELETE FROM {table}")
+                click.echo(f"  Cleared {table}")
+            except Exception as e:
+                click.echo(f"  Could not clear {table}: {e}")
+        
+        conn.commit()
+        conn.execute("VACUUM")
+        conn.close()
+        click.echo("\n Kept session metadata, cleared all observations and wire data")
+    else:
+        # Full reset — delete DB and Chroma
+        try:
+            db_path.unlink()
+            wal = db_path.with_suffix(".db-wal")
+            shm = db_path.with_suffix(".db-shm")
+            for f in [wal, shm]:
+                if f.exists():
+                    f.unlink()
+            click.echo(f"  Deleted {db_path}")
+        except Exception as e:
+            click.echo(f"  Failed to delete DB: {e}")
+            return
+
+        if chroma_path.exists():
+            try:
+                shutil.rmtree(chroma_path)
+                click.echo(f"  Deleted {chroma_path}")
+            except Exception as e:
+                click.echo(f"  Failed to delete Chroma: {e}")
+
+        # Re-initialize empty database
+        click.echo("\n Re-initializing database...")
+        _init_database()
+
+    new_size = db_path.stat().st_size / 1024 / 1024 if db_path.exists() else 0
+    click.echo(f"\n Reset complete! DB size: {new_size:.1f} MB")
+    click.echo("\n Next steps:")
+    click.echo("  1. Start server: mneme server")
+    click.echo("  2. Active sessions will be indexed in real-time")
+    if not keep_sessions:
+        click.echo("  3. Old sessions can be scanned via API or by enabling background scan")
+
+
 # ---------------------------------------------------------------------------
 # Bootstrap command — one-shot setup
 # ---------------------------------------------------------------------------
@@ -528,6 +639,7 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     click.echo("  mneme stats      Show database statistics")
     click.echo("  mneme server     Start web server")
     click.echo("  mneme cleanup    Clean old observations")
+    click.echo("  mneme reset      Reset database (delete all data)")
     click.echo()
     click.echo("Files:")
     click.echo(f"  Config:  {get_mneme_dir() / 'config.json'}")
