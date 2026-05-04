@@ -66,3 +66,7 @@ docs/analysis/
 # Implementation plans (not for repo)
 docs/IMPLEMENTATION_PLAN.md
 
+# Kimi CLI / MCP
+.kimi/
+.playwright-mcp/
+
