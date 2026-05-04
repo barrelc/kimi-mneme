@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
+from mneme import __version__
 from mneme.config import load_config
 from mneme.core.worker import StructuringWorker
 from mneme.db.store import ObservationStore
@@ -124,7 +125,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="kimi-mneme",
         description="Persistent memory for Kimi Code CLI",
-        version="1.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
 

@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from mneme import __version__
 from mneme.db.store import ObservationStore
 from mneme.db.structured_store import StructuredObservationStore
 from mneme.db.vector import SQLiteVecStore, VectorStore
@@ -23,7 +24,7 @@ router = APIRouter()
 @router.get("/health")
 async def health() -> dict[str, str]:
     """Health check endpoint."""
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": __version__}
 
 
 @router.get("/search")

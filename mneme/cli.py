@@ -612,6 +612,172 @@ def _start_server() -> bool:
 
 
 @main.command()
+@click.argument("query", required=False)
+@click.option("--tables", is_flag=True, help="List all tables")
+@click.option("--schema", metavar="TABLE", help="Show CREATE TABLE for a table")
+@click.option("--file", type=click.Path(exists=True), help="Execute SQL from file")
+@click.option("--interactive", "-i", is_flag=True, help="Open interactive SQL shell")
+@click.option("--csv", is_flag=True, help="Output as CSV")
+@click.option("--json-out", "json_out", is_flag=True, help="Output as JSON array")
+def sql(query: str | None, tables: bool, schema: str | None, file: str | None, interactive: bool, csv: bool, json_out: bool) -> None:
+    """Run SQL queries against the mneme SQLite database.
+
+    Examples:
+        mneme sql "SELECT * FROM sessions ORDER BY started_at DESC LIMIT 5"
+        mneme sql --tables
+        mneme sql --schema sessions
+        mneme sql --file script.sql
+        mneme sql -i
+    """
+    import sqlite3
+    from mneme.config import load_config
+
+    config = load_config()
+    db_path = config["db"]["path"]
+
+    if not Path(db_path).exists():
+        click.echo(f" Database not found: {db_path}")
+        click.echo(" Run 'mneme bootstrap' first.")
+        sys.exit(1)
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        if tables:
+            rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
+            click.echo("Tables:")
+            for r in rows:
+                click.echo(f"  {r['name']}")
+            return
+
+        if schema:
+            row = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+                (schema,),
+            ).fetchone()
+            if row and row["sql"]:
+                click.echo(row["sql"])
+            else:
+                click.echo(f"Table '{schema}' not found.")
+            return
+
+        if file:
+            sql_text = Path(file).read_text(encoding="utf-8")
+            cursor = conn.execute(sql_text)
+            _print_sql_results(cursor, csv=csv, json_out=json_out)
+            conn.commit()
+            return
+
+        if interactive:
+            _interactive_sql_shell(conn)
+            return
+
+        if not query:
+            click.echo(click.get_current_context().get_help())
+            return
+
+        cursor = conn.execute(query)
+        if cursor.description:
+            _print_sql_results(cursor, csv=csv, json_out=json_out)
+        else:
+            conn.commit()
+            click.echo(f" OK — rows affected: {cursor.rowcount}")
+    except Exception as e:
+        click.echo(f" Error: {e}", err=True)
+        sys.exit(1)
+    finally:
+        conn.close()
+
+
+def _print_sql_results(cursor, csv: bool, json_out: bool) -> None:
+    """Print query results in various formats."""
+    rows = cursor.fetchall()
+    if not rows:
+        click.echo("(no rows)")
+        return
+
+    headers = [d[0] for d in cursor.description]
+
+    if json_out:
+        import json
+        result = [dict(row) for row in rows]
+        click.echo(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return
+
+    if csv:
+        import csv
+        import io
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(headers)
+        writer.writerows(rows)
+        click.echo(out.getvalue().rstrip("\n"))
+        return
+
+    # Pretty table
+    str_rows = [[str(cell) if cell is not None else "NULL" for cell in row] for row in rows]
+    col_widths = [len(h) for h in headers]
+    for row in str_rows:
+        for i, cell in enumerate(row):
+            col_widths[i] = max(col_widths[i], len(cell))
+
+    def _row_line(cells):
+        return " | ".join(c.ljust(w) for c, w in zip(cells, col_widths))
+
+    click.echo(_row_line(headers))
+    click.echo("-" * (sum(col_widths) + 3 * (len(headers) - 1)))
+    for row in str_rows:
+        click.echo(_row_line(row))
+    click.echo(f"\n({len(rows)} row{'s' if len(rows) != 1 else ''})")
+
+
+def _interactive_sql_shell(conn: sqlite3.Connection) -> None:
+    """Simple interactive SQL shell."""
+    try:
+        import readline
+    except ImportError:
+        pass  # Windows may not have readline
+
+    click.echo("Interactive SQL shell. Type '.tables', '.schema TABLE', '.quit' or SQL.")
+    while True:
+        try:
+            line = input("sqlite> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            click.echo("\nBye.")
+            break
+
+        if not line:
+            continue
+        if line in (".quit", ".q", ".exit"):
+            click.echo("Bye.")
+            break
+        if line == ".tables":
+            rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
+            for r in rows:
+                click.echo(r["name"])
+            continue
+        if line.startswith(".schema "):
+            table = line[8:].strip()
+            row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
+            if row and row["sql"]:
+                click.echo(row["sql"])
+            else:
+                click.echo(f"Table '{table}' not found.")
+            continue
+
+        try:
+            cursor = conn.execute(line)
+            if cursor.description:
+                _print_sql_results(cursor, csv=False, json_out=False)
+            else:
+                conn.commit()
+                click.echo(f"OK — rows affected: {cursor.rowcount}")
+        except Exception as e:
+            click.echo(f"Error: {e}")
+
+
+@main.command()
 @click.option("--no-server", is_flag=True, help="Don't start web server")
 @click.option("--no-plugin", is_flag=True, help="Don't install plugin")
 def bootstrap(no_server: bool, no_plugin: bool) -> None:
@@ -620,8 +786,9 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     Registers hooks, installs plugin, initializes database, and starts web server.
     Safe to run multiple times — idempotent.
     """
+    from mneme import __version__
     click.echo(" Bootstrapping kimi-mneme...")
-    click.echo(" Version: 1.1.0")
+    click.echo(f" Version: {__version__}")
     click.echo(f" Python: {sys.executable}")
     click.echo()
 
@@ -660,6 +827,7 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     click.echo("  mneme server     Start web server")
     click.echo("  mneme cleanup    Clean old observations")
     click.echo("  mneme reset      Reset database (delete all data)")
+    click.echo("  mneme sql        Run SQL queries against the database")
     click.echo()
     click.echo("Files:")
     click.echo(f"  Config:  {get_mneme_dir() / 'config.json'}")
