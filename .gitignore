@@ -62,3 +62,7 @@ mneme-data/
 docs/ANALYSIS_*.md
 docs/analysis/
 
+
+# Implementation plans (not for repo)
+docs/IMPLEMENTATION_PLAN.md
+
