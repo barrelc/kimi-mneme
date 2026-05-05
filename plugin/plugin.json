@@ -1,14 +1,16 @@
 {
   "name": "kimi-mneme",
-  "version": "2.0.4",
+  "version": "2.0.9",
   "description": "Persistent memory plugin for Kimi Code CLI \u2014 search and retrieve past session context. Part of the kimi-plugins ecosystem.",
   "tools": [
     {
       "name": "mneme_search",
-      "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure.",
+      "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure. Searches across raw observations, structured observations, semantic embeddings, and wire events.",
       "command": [
-        "python",
-        "tools/search.py"
+        "mneme",
+        "search",
+        "--query",
+        "{{query}}"
       ],
       "parameters": {
         "type": "object",
@@ -55,8 +57,10 @@
       "name": "mneme_timeline",
       "description": "Get chronological context around a specific observation. Shows what happened before and after. Use after mneme_search to understand context.",
       "command": [
-        "python",
-        "tools/timeline.py"
+        "mneme",
+        "timeline",
+        "--observation-id",
+        "{{observation_id}}"
       ],
       "parameters": {
         "type": "object",
@@ -80,8 +84,10 @@
       "name": "mneme_get",
       "description": "Fetch full observation details by IDs. Always batch multiple IDs in one call. Use as the final step after identifying relevant observations.",
       "command": [
-        "python",
-        "tools/get.py"
+        "mneme",
+        "get",
+        "--ids",
+        "{{ids}}"
       ],
       "parameters": {
         "type": "object",

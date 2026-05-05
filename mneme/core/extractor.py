@@ -39,13 +39,16 @@ class Extractor:
         from mneme.core.summarizer import FastSummarizer
 
         summarizer = FastSummarizer(store=self.store)
-        brief = summarizer.get_project_brief(cwd, max_sessions=1, current_session_id=session_id)
+        brief = summarizer.get_project_brief(cwd, max_sessions=2, current_session_id=session_id)
 
         # 2. Full context injection — semantic search via sqlite-vec (B.5)
         from mneme.core.injector import Injector
 
         injector = Injector(store=self.store, use_vector=True)
         context = injector.get_context(cwd, current_session_id=session_id)
+
+        # 3. Fallback: raw observations summary if no structured data
+        raw_summary = self._get_raw_observations_summary(cwd, current_session_id=session_id)
 
         parts = []
         if resume_context:
@@ -54,6 +57,9 @@ class Extractor:
             parts.append(brief)
         if context:
             parts.append(context)
+        elif raw_summary:
+            # Use raw summary if injector returned nothing (no structured obs)
+            parts.append(raw_summary)
 
         if parts:
             combined = "\n\n".join(parts)
@@ -66,6 +72,71 @@ class Extractor:
             )
 
         return None
+
+    def _get_raw_observations_summary(self, cwd: str, current_session_id: str | None = None) -> str | None:
+        """Get a quick summary from raw observations when structured data is sparse."""
+        try:
+            sessions = self.store.get_sessions_for_project(cwd, limit=3)
+            if not sessions:
+                return None
+
+            lines = ["## 📋 Recent Activity (Raw)"]
+            lines.append("")
+
+            count = 0
+            for session in sessions:
+                if current_session_id and session["id"] == current_session_id:
+                    continue
+
+                observations = self.store.get_observations_for_session(session["id"], limit=10)
+                if not observations:
+                    continue
+
+                # Extract key info
+                prompts = []
+                tools = set()
+                files = set()
+                for obs in observations:
+                    p = obs.get("prompt")
+                    if p and len(p) > 5:
+                        prompts.append(p)
+                    t = obs.get("tool_name")
+                    if t:
+                        tools.add(t)
+                    fp = obs.get("file_path")
+                    if fp:
+                        files.add(fp)
+
+                if not prompts and not tools:
+                    continue
+
+                started = session.get("started_at", "")
+                time_str = started[:16] if started else ""
+
+                lines.append(f"**Session** ({time_str})")
+                for p in prompts[-2:]:
+                    short = p[:80] + "..." if len(p) > 80 else p
+                    lines.append(f"- 💬 {short}")
+                if tools:
+                    lines.append(f"- 🛠️ Tools: {', '.join(sorted(tools))[:60]}")
+                if files:
+                    file_list = sorted(files)[-3:]
+                    lines.append(f"- 📁 Files: {', '.join(file_list)}")
+                lines.append("")
+
+                count += 1
+                if count >= 2:
+                    break
+
+            if count == 0:
+                return None
+
+            lines.append("---")
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.debug(f"Raw observations summary failed: {e}")
+            return None
 
     def _get_resume_context(self, session_id: str) -> str | None:
         """Get resume context from latest checkpoint for this session."""

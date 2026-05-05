@@ -73,6 +73,212 @@ def server(port: int, host: str) -> None:
     uvicorn.run(app, host=host, port=port)
 
 
+# ---------------------------------------------------------------------------
+# Plugin tool commands — called by Kimi CLI plugin system
+# ---------------------------------------------------------------------------
+
+
+@main.command("search")
+@click.option("--query", "-q", required=True, help="Search query")
+@click.option("--limit", "-l", default=10, help="Max results")
+@click.option("--date-from", help="Start date (ISO)")
+@click.option("--date-to", help="End date (ISO)")
+@click.option("--project", "-p", help="Project filter")
+@click.option("--type", "obs_type", help="Observation type filter")
+def search_cmd(query: str, limit: int, date_from: str | None, date_to: str | None, project: str | None, obs_type: str | None) -> None:
+    """Search memory index (plugin tool wrapper)."""
+    from mneme.db.store import ObservationStore
+    from mneme.db.structured_store import StructuredObservationStore
+    from mneme.db.vector import SQLiteVecStore
+    from mneme.db.wire_store import WireStore
+
+    store = ObservationStore()
+    wire_store = WireStore()
+    structured_store = StructuredObservationStore()
+    vec_store = SQLiteVecStore()
+
+    all_results = []
+
+    # 1. Raw observations
+    obs_results = store.search(query=query, limit=limit, date_from=date_from, date_to=date_to)
+    for r in obs_results:
+        snippet = r.get("snippet") or ""
+        if not snippet:
+            snippet = " | ".join(
+                s for s in [
+                    r.get("prompt"), r.get("tool_output"), r.get("error"),
+                    r.get("tool_input"), r.get("tool_name"), r.get("file_path"),
+                ] if s
+            ) or "(no preview)"
+        all_results.append({
+            "id": r["id"],
+            "session_id": r["session_id"],
+            "timestamp": r.get("created_at"),
+            "type": r["event_type"],
+            "tool_name": r.get("tool_name"),
+            "file_path": r.get("file_path"),
+            "snippet": snippet[:200],
+            "source": "observation",
+        })
+
+    # 2. Structured observations
+    structured_results = structured_store.search_fts(query, limit=limit)
+    for r in structured_results:
+        all_results.append({
+            "id": f"structured_{r['id']}",
+            "session_id": r["session_id"],
+            "timestamp": r.get("created_at"),
+            "type": r.get("type", "structured"),
+            "tool_name": None,
+            "file_path": None,
+            "snippet": f"{r.get('title', '')}: {r.get('narrative', '')}"[:200],
+            "source": "structured",
+        })
+
+    # 3. Semantic search
+    try:
+        semantic_results = vec_store.search_with_content(query=query, project=project, limit=limit)
+        for sr in semantic_results:
+            obs = sr.get("observation", {})
+            existing_ids = {r["id"] for r in all_results}
+            obs_id = obs.get("id")
+            if obs_id and f"semantic_{obs_id}" not in existing_ids:
+                all_results.append({
+                    "id": f"semantic_{obs_id}",
+                    "session_id": obs.get("session_id", ""),
+                    "timestamp": obs.get("created_at"),
+                    "type": obs.get("type", "semantic"),
+                    "tool_name": sr.get("matched_field", ""),
+                    "file_path": None,
+                    "snippet": obs.get("title", ""),
+                    "source": "semantic",
+                    "distance": sr.get("distance"),
+                })
+    except Exception:
+        pass
+
+    # 4. Wire events
+    wire_results = wire_store.search_wire_events(query=query, limit=limit)
+    for wr in wire_results:
+        if not any(r.get("session_id") == wr["session_id"] for r in all_results):
+            try:
+                payload = json.loads(wr.get("payload_json", "{}"))
+                text = ""
+                if isinstance(payload, dict):
+                    if "content" in payload:
+                        text = str(payload["content"])[:200]
+                    elif "message" in payload:
+                        text = str(payload["message"])[:200]
+                    elif "tool_name" in payload:
+                        text = f"{payload['tool_name']}: {str(payload.get('tool_input', ''))[:100]}"
+                    else:
+                        text = str(payload)[:200]
+                else:
+                    text = str(payload)[:200]
+            except Exception:
+                text = wr.get("payload_json", "")[:200]
+
+            all_results.append({
+                "id": f"wire_{wr['id']}",
+                "session_id": wr["session_id"],
+                "created_at": wr.get("timestamp"),
+                "event_type": wr.get("event_type", "WireEvent"),
+                "tool_name": None,
+                "file_path": wr.get("session_cwd"),
+                "snippet": text,
+                "source": "wire",
+            })
+
+    # Filter by project
+    if project:
+        all_results = [
+            r for r in all_results
+            if project.lower() in r.get("session_id", "").lower()
+            or project.lower() in r.get("file_path", "").lower()
+        ]
+
+    # Deduplicate
+    seen_snippets = set()
+    deduped = []
+    for r in all_results:
+        snippet = r.get("snippet", "")
+        if snippet and snippet not in seen_snippets:
+            seen_snippets.add(snippet)
+            deduped.append(r)
+        elif not snippet:
+            deduped.append(r)
+
+    output = {
+        "results": deduped[:limit],
+        "total": len(deduped[:limit]),
+        "query": query,
+        "sources": {
+            "observations": sum(1 for r in deduped if r.get("source") == "observation"),
+            "structured": sum(1 for r in deduped if r.get("source") == "structured"),
+            "semantic": sum(1 for r in deduped if r.get("source") == "semantic"),
+            "wire": sum(1 for r in deduped if r.get("source") == "wire"),
+        },
+    }
+    click.echo(json.dumps(output, ensure_ascii=False, indent=2))
+
+
+@main.command("timeline")
+@click.option("--observation-id", "-i", type=int, required=True, help="Center observation ID")
+@click.option("--radius", "-r", default=5, help="Items before/after")
+def timeline_cmd(observation_id: int, radius: int) -> None:
+    """Get chronological context around an observation (plugin tool wrapper)."""
+    from mneme.db.store import ObservationStore
+
+    store = ObservationStore()
+    timeline = store.get_timeline(observation_id, radius)
+
+    def fmt(obs: dict) -> dict:
+        return {
+            "id": obs["id"],
+            "timestamp": obs["created_at"],
+            "type": obs["event_type"],
+            "tool_name": obs.get("tool_name"),
+            "file_path": obs.get("file_path"),
+            "snippet": (obs.get("tool_output") or obs.get("error") or obs.get("prompt") or "")[:200],
+        }
+
+    output = {
+        "center": fmt(timeline["center"]) if timeline["center"] else None,
+        "before": [fmt(o) for o in timeline["before"]],
+        "after": [fmt(o) for o in timeline["after"]],
+    }
+    click.echo(json.dumps(output, ensure_ascii=False, indent=2))
+
+
+@main.command("get")
+@click.option("--ids", "-i", required=True, help="Comma-separated observation IDs")
+def get_cmd(ids: str) -> None:
+    """Fetch full observation details by IDs (plugin tool wrapper)."""
+    from mneme.db.store import ObservationStore
+
+    store = ObservationStore()
+    id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    observations = store.get_observations(id_list)
+
+    full = []
+    for obs in observations:
+        full.append({
+            "id": obs["id"],
+            "session_id": obs["session_id"],
+            "timestamp": obs["created_at"],
+            "type": obs["event_type"],
+            "tool_name": obs.get("tool_name"),
+            "tool_input": obs.get("tool_input"),
+            "tool_output": obs.get("tool_output"),
+            "error": obs.get("error"),
+            "file_path": obs.get("file_path"),
+            "prompt": obs.get("prompt"),
+            "agent_name": obs.get("agent_name"),
+        })
+
+    click.echo(json.dumps({"observations": full, "count": len(full)}, ensure_ascii=False, indent=2))
+
+
 @main.command()
 def update() -> None:
     """Update hooks and config to latest version."""
@@ -353,7 +559,12 @@ def _register_hooks() -> bool:
         if src.exists():
             shutil.copy2(src, dst)
 
+    # Prefer uv tool python if available (has mneme installed), fallback to current
     python_exe = sys.executable
+    uv_tool_python = Path.home() / "AppData" / "Roaming" / "uv" / "tools" / "kimi-mneme" / "Scripts" / "python.exe"
+    if uv_tool_python.exists():
+        python_exe = str(uv_tool_python)
+
     hook_entries = []
     for event, script in hooks:
         script_path = stable_hooks_dir / script
@@ -444,17 +655,16 @@ def _install_plugin() -> bool:
 
 
 def _generate_plugin_json(plugin_dir: Path) -> None:
-    """Generate plugin.json with the correct Python executable."""
-    python_exe = sys.executable
+    """Generate plugin.json using mneme CLI commands (stable across installs)."""
     plugin_json = {
         "name": "kimi-mneme",
         "version": __version__,
-        "description": "Persistent memory plugin for Kimi Code CLI — search and retrieve past session context",
+        "description": "Persistent memory plugin for Kimi Code CLI — search and retrieve past session context. Part of the kimi-plugins ecosystem.",
         "tools": [
             {
                 "name": "mneme_search",
-                "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure.",
-                "command": [python_exe, str(plugin_dir / "tools" / "search.py")],
+                "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure. Searches across raw observations, structured observations, semantic embeddings, and wire events.",
+                "command": ["mneme", "search", "--query", "{{query}}"],
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -491,7 +701,7 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
             {
                 "name": "mneme_timeline",
                 "description": "Get chronological context around a specific observation. Shows what happened before and after. Use after mneme_search to understand context.",
-                "command": [python_exe, str(plugin_dir / "tools" / "timeline.py")],
+                "command": ["mneme", "timeline", "--observation-id", "{{observation_id}}"],
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -511,7 +721,7 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
             {
                 "name": "mneme_get",
                 "description": "Fetch full observation details by IDs. Always batch multiple IDs in one call. Use as the final step after identifying relevant observations.",
-                "command": [python_exe, str(plugin_dir / "tools" / "get.py")],
+                "command": ["mneme", "get", "--ids", "{{ids}}"],
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -529,6 +739,74 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
 
     with open(plugin_dir / "plugin.json", "w", encoding="utf-8") as f:
         json.dump(plugin_json, f, indent=2)
+
+
+def _register_mcp() -> bool:
+    """Register kimi-mneme MCP server in Kimi CLI config."""
+    click.echo(" Registering MCP server...")
+
+    mcp_config = get_kimi_dir() / "mcp.json"
+
+    mcp_entry = {
+        "kimi-mneme": {
+            "command": sys.executable,
+            "args": ["-m", "mneme.mcp_server"],
+        }
+    }
+
+    try:
+        if mcp_config.exists():
+            with open(mcp_config, encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {"mcpServers": {}}
+
+        if "mcpServers" not in data:
+            data["mcpServers"] = {}
+
+        data["mcpServers"]["kimi-mneme"] = mcp_entry["kimi-mneme"]
+
+        with open(mcp_config, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        click.echo(f" MCP server registered in {mcp_config}")
+        return True
+
+    except Exception as e:
+        click.echo(f" Failed to register MCP: {e}")
+        return False
+
+
+def _install_skills() -> bool:
+    """Copy skill files to Kimi CLI skills directory."""
+    click.echo(" Installing skills...")
+
+    project_root = get_project_root()
+    source_skills = project_root / "skills"
+
+    if not source_skills.exists():
+        click.echo(" No skills directory found, skipping")
+        return True
+
+    # Kimi CLI skills directory
+    kimi_skills = get_kimi_dir() / "skills"
+    kimi_skills.mkdir(parents=True, exist_ok=True)
+
+    try:
+        for skill_dir in source_skills.iterdir():
+            if skill_dir.is_dir():
+                dst = kimi_skills / skill_dir.name
+                if dst.exists():
+                    shutil.rmtree(dst)
+                shutil.copytree(skill_dir, dst)
+                click.echo(f"  Installed skill: {skill_dir.name}")
+
+        click.echo(f" Skills installed to {kimi_skills}")
+        return True
+
+    except Exception as e:
+        click.echo(f" Failed to install skills: {e}")
+        return False
 
 
 def _start_server() -> bool:
@@ -806,6 +1084,9 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     if not no_plugin:
         steps.append(("Plugin", _install_plugin))
 
+    steps.append(("MCP Server", _register_mcp))
+    steps.append(("Skills", _install_skills))
+
     if not no_server:
         steps.append(("Server", _start_server))
 
@@ -833,6 +1114,9 @@ def bootstrap(no_server: bool, no_plugin: bool) -> None:
     click.echo("  mneme cleanup    Clean old observations")
     click.echo("  mneme reset      Reset database (delete all data)")
     click.echo("  mneme sql        Run SQL queries against the database")
+    click.echo("  mneme search     Search memory (plugin tool)")
+    click.echo("  mneme timeline   Get timeline context (plugin tool)")
+    click.echo("  mneme get        Fetch full details (plugin tool)")
     click.echo()
     click.echo("Files:")
     click.echo(f"  Config:  {get_mneme_dir() / 'config.json'}")
