@@ -16,7 +16,7 @@ from mneme import __version__
 
 PYPI_URL = "https://pypi.org/pypi/kimi-mneme/json"
 CACHE_FILE = Path.home() / ".kimi" / "mneme" / ".version_cache"
-CACHE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
+CACHE_TTL_SECONDS = 60 * 60  # 1 hour
 
 
 def _get_cache() -> dict:

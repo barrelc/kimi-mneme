@@ -114,9 +114,12 @@ class StructuringWorker:
                 self.store.mark_message_failed(msg["id"])
 
     @staticmethod
-    def _extract_project(cwd: str) -> str:
+    def _extract_project(cwd: str | None) -> str:
         """Extract project name from cwd."""
         from pathlib import PurePath
+
+        if not cwd:
+            return "unknown"
 
         # Normalize separators so PurePath works cross-platform
         normalized = cwd.replace("\\", "/")

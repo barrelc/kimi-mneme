@@ -134,17 +134,29 @@ The `llm` section defines the default provider for all AI-powered features (stru
 
 #### Provider Examples
 
-**Kimi** (default, uses OAuth token from kimi-cli):
+**Kimi / Moonshot** (default — tries OAuth first, falls back to API key):
+
+When you log in to Kimi CLI via `kimi login`, mneme will automatically try to reuse that OAuth token. However, the Kimi Code API (`api.kimi.com/coding/v1`) is restricted to official Coding Agents and may return **403 Forbidden**. If that happens, mneme falls back to heuristic structuring (rule-based, no AI).
+
+To enable full AI structuring, provide a **Moonshot API key** from https://platform.moonshot.cn:
+
+```bash
+export MOONSHOT_API_KEY="sk-your-key-here"
+```
+
+Or configure explicitly in `config.json`:
 ```json
 {
   "llm": {
-    "provider": "kimi",
-    "model": "kimi-k2.5"
+    "provider": "openai_compatible",
+    "model": "moonshot-v1-8k",
+    "base_url": "https://api.moonshot.cn/v1",
+    "api_key": "sk-your-key-here"
   }
 }
 ```
 
-**Ollama** (local):
+**Ollama** (local, free, no API key needed):
 ```json
 {
   "llm": {
@@ -267,6 +279,9 @@ export MNEME_LLM_PROVIDER="ollama"
 export MNEME_LLM_MODEL="llama3.2"
 export MNEME_LLM_BASE_URL="http://localhost:11434"
 export MNEME_LLM_API_KEY="sk-..."
+
+# Moonshot API key (alternative to Kimi OAuth)
+export MOONSHOT_API_KEY="sk-..."
 
 # Structuring
 export MNEME_STRUCTURING_ENABLED="true"

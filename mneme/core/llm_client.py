@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
+import socket
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +14,50 @@ from typing import Any
 
 import httpx
 from loguru import logger
+
+
+def _device_model() -> str:
+    """Build device model string like 'Windows 11 AMD64'."""
+    system = platform.system()
+    release = platform.release()
+    machine = platform.machine()
+    parts = [p for p in (system, release, machine) if p]
+    return " ".join(parts) or "unknown"
+
+
+def _ascii_header_value(value: str, *, fallback: str = "unknown") -> str:
+    try:
+        value.encode("ascii")
+        return value.strip()
+    except UnicodeEncodeError:
+        sanitized = value.encode("ascii", errors="ignore").decode("ascii").strip()
+        return sanitized or fallback
+
+
+def _get_device_id() -> str:
+    """Get or create stable device ID compatible with kimi-cli."""
+    device_id_path = Path.home() / ".kimi" / "device_id"
+    if device_id_path.exists():
+        return device_id_path.read_text(encoding="utf-8").strip()
+    device_id = uuid.uuid4().hex
+    device_id_path.parent.mkdir(parents=True, exist_ok=True)
+    device_id_path.write_text(device_id, encoding="utf-8")
+    return device_id
+
+
+def _kimi_common_headers() -> dict[str, str]:
+    """Build headers required by Kimi Code OAuth API."""
+    device_name = platform.node() or socket.gethostname()
+    device_model = _device_model()
+    headers = {
+        "X-Msh-Platform": "kimi_cli",
+        "X-Msh-Version": "1.0.0",  # Will be overridden if mneme has version
+        "X-Msh-Device-Name": device_name,
+        "X-Msh-Device-Model": device_model,
+        "X-Msh-Os-Version": platform.version(),
+        "X-Msh-Device-Id": _get_device_id(),
+    }
+    return {key: _ascii_header_value(value) for key, value in headers.items()}
 
 
 @dataclass
@@ -52,9 +100,12 @@ class BaseLLMClient(ABC):
 
 
 class KimiClient(BaseLLMClient):
-    """Kimi API client — reuses OAuth token from kimi-cli."""
+    """Kimi API client — supports both OAuth (kimi-cli) and Moonshot API key."""
 
-    DEFAULT_URL = "https://api.kimi.com/coding/v1/chat/completions"
+    # OAuth endpoint for kimi-cli logged-in users
+    KIMI_CODE_URL = "https://api.kimi.com/coding/v1/chat/completions"
+    # Moonshot Open Platform endpoint (requires API key from platform.moonshot.cn)
+    MOONSHOT_URL = "https://api.moonshot.cn/v1/chat/completions"
 
     def __init__(
         self,
@@ -65,11 +116,32 @@ class KimiClient(BaseLLMClient):
         **kwargs: Any,
     ) -> None:
         super().__init__(model=model, timeout=timeout, **kwargs)
-        self.api_key = api_key or self._load_token()
-        self.base_url = base_url or self.DEFAULT_URL
+        
+        # Priority: 1) explicit api_key 2) MOONSHOT_API_KEY env 3) OAuth token
+        self._explicit_key = api_key
+        self._moonshot_key = os.getenv("MOONSHOT_API_KEY")
+        self._oauth_token = self._load_oauth_token()
+        
+        # Determine which credentials to use
+        if api_key:
+            self.api_key = api_key
+            self.base_url = base_url or self.MOONSHOT_URL
+            self._auth_mode = "explicit"
+        elif self._moonshot_key:
+            self.api_key = self._moonshot_key
+            self.base_url = base_url or self.MOONSHOT_URL
+            self._auth_mode = "moonshot"
+        elif self._oauth_token:
+            self.api_key = self._oauth_token
+            self.base_url = base_url or self.KIMI_CODE_URL
+            self._auth_mode = "oauth"
+        else:
+            self.api_key = None
+            self.base_url = base_url or self.MOONSHOT_URL
+            self._auth_mode = "none"
 
     @staticmethod
-    def _load_token() -> str | None:
+    def _load_oauth_token() -> str | None:
         """Load OAuth access token from kimi-cli credentials."""
         creds_path = Path.home() / ".kimi" / "credentials" / "kimi-code.json"
         if not creds_path.exists():
@@ -84,6 +156,10 @@ class KimiClient(BaseLLMClient):
     def enabled(self) -> bool:
         return bool(self.api_key)
 
+    @property
+    def auth_mode(self) -> str:
+        return self._auth_mode
+
     async def chat(self, messages: list[LLMMessage], **kwargs: Any) -> LLMResponse | None:
         if not self.enabled:
             return None
@@ -96,14 +172,20 @@ class KimiClient(BaseLLMClient):
         }
         payload.update(self._merge_kwargs(kwargs))
 
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        
+        # Add OAuth headers only for kimi-code endpoint
+        if self._auth_mode == "oauth":
+            headers.update(_kimi_common_headers())
+
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
                     self.base_url,
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                    },
+                    headers=headers,
                     json=payload,
                 )
                 response.raise_for_status()
@@ -115,6 +197,16 @@ class KimiClient(BaseLLMClient):
                 usage=data.get("usage"),
                 raw=data,
             )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 403 and self._auth_mode == "oauth":
+                logger.warning(
+                    "Kimi OAuth token rejected (403). Kimi Code API is only available "
+                    "for official Coding Agents. Please set MOONSHOT_API_KEY env var "
+                    "or provide an API key from https://platform.moonshot.cn"
+                )
+            else:
+                logger.warning(f"Kimi API error: {e}")
+            return None
         except Exception as e:
             logger.warning(f"Kimi API error: {e}")
             return None
