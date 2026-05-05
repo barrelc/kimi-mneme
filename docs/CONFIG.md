@@ -62,7 +62,6 @@ Created automatically on first run with sensible defaults.
     "host": "127.0.0.1",
     "port": 37777,
     "cors_origins": ["http://localhost:37777", "http://127.0.0.1:37777"],
-    "auth_token": null,
     "loop": "auto"
   },
   "mcp": {
@@ -213,7 +212,7 @@ The `llm` section defines the default provider for all AI-powered features (stru
 | `server.host` | string | `127.0.0.1` | Bind address |
 | `server.port` | integer | `37777` | Port number |
 | `server.cors_origins` | array | `["http://localhost:37777", "http://127.0.0.1:37777"]` | Allowed CORS origins |
-| `server.auth_token` | string | `null` | Optional Bearer token |
+
 | `server.loop` | string | `auto` | Event loop: `auto`, `asyncio`, `winloop` (Windows only) |
 
 ### MCP Server

@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
 
-import httpx
 from loguru import logger
 
-from mneme.core.ai_provider import _load_kimi_token
+from mneme.config import load_config
+from mneme.core.ai_provider import ConfigurableAIProvider
+from mneme.core.llm_client import LLMMessage
 
 SESSION_SUMMARY_PROMPT = """You are a coding session analyst. Analyze the following session observations and produce a structured summary in Russian language.
 
@@ -39,12 +41,21 @@ Respond ONLY with valid JSON. No markdown, no explanations."""
 
 
 class SessionSummaryGenerator:
-    """Generate structured session summaries using Kimi API."""
+    """Generate structured session summaries using configured LLM provider."""
 
     def __init__(self) -> None:
-        self.token = _load_kimi_token()
-        self.enabled = bool(self.token)
-        self.model = "kimi-k2.5"
+        config = load_config()
+        llm_cfg = config.get("llm", {})
+
+        self.provider = ConfigurableAIProvider(
+            provider=llm_cfg.get("provider", "kimi"),
+            model=llm_cfg.get("model"),
+            base_url=llm_cfg.get("base_url"),
+            api_key=llm_cfg.get("api_key"),
+            timeout=llm_cfg.get("timeout", 60.0),
+            enabled=True,
+        )
+        self.enabled = self.provider.enabled
 
     def _format_observations(self, observations: list[dict[str, Any]]) -> str:
         """Format observations for the LLM prompt."""
@@ -89,33 +100,28 @@ class SessionSummaryGenerator:
             formatted = self._format_observations(observations)
             prompt = SESSION_SUMMARY_PROMPT.format(observations=formatted)
 
-            response = httpx.post(
-                "https://api.kimi.com/coding/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are a precise coding session analyst. Always respond with valid JSON only.",
-                        },
-                        {"role": "user", "content": prompt},
+            if self.provider.client is None:
+                return None
+
+            # Run async chat call synchronously
+            response = asyncio.run(
+                self.provider.client.chat(
+                    messages=[
+                        LLMMessage(
+                            role="system",
+                            content="You are a precise coding session analyst. Always respond with valid JSON only.",
+                        ),
+                        LLMMessage(role="user", content=prompt),
                     ],
-                    "temperature": 0.3,
-                    "max_tokens": 2000,
-                },
-                timeout=60.0,
+                    temperature=0.3,
+                    max_tokens=2000,
+                )
             )
-            response.raise_for_status()
-            data = response.json()
 
-            content = data["choices"][0]["message"]["content"]
+            if response is None:
+                return None
 
-            # Parse JSON from response
-            return self._parse_summary(content)
+            return self._parse_summary(response.content)
 
         except Exception as e:
             logger.error(f"Session summary generation failed: {e}")
