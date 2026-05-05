@@ -1,7 +1,11 @@
 {
   "name": "kimi-mneme",
-  "version": "2.0.10",
-  "description": "Persistent memory plugin for Kimi Code CLI \u2014 search and retrieve past session context. Part of the kimi-plugins ecosystem.",
+  "version": "2.0.13",
+  "description": "Persistent memory plugin for Kimi Code CLI — search and retrieve past session context. Part of the kimi-plugins ecosystem.",
+  "inject": {
+    "llm.api_key": "api_key",
+    "llm.endpoint": "base_url"
+  },
   "tools": [
     {
       "name": "mneme_search",
@@ -17,7 +21,7 @@
         "properties": {
           "query": {
             "type": "string",
-            "description": "Search query \u2014 natural language or keywords"
+            "description": "Search query — natural language or keywords"
           },
           "type": {
             "type": "string",

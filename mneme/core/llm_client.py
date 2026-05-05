@@ -117,9 +117,14 @@ class KimiClient(BaseLLMClient):
     ) -> None:
         super().__init__(model=model, timeout=timeout, **kwargs)
 
-        # Priority: 1) explicit api_key 2) MOONSHOT_API_KEY env 3) OAuth token
+        # Priority:
+        # 1) explicit api_key argument
+        # 2) MOONSHOT_API_KEY env var
+        # 3) Plugin-injected token from kimi-cli (llm.api_key env var)
+        # 4) OAuth token from ~/.kimi/credentials/kimi-code.json
         self._explicit_key = api_key
         self._moonshot_key = os.getenv("MOONSHOT_API_KEY")
+        self._plugin_token = os.getenv("llm.api_key") or os.getenv("api_key")  # noqa: SIM112
         self._oauth_token = self._load_oauth_token()
 
         # Determine which credentials to use
@@ -131,6 +136,18 @@ class KimiClient(BaseLLMClient):
             self.api_key = self._moonshot_key
             self.base_url = base_url or self.MOONSHOT_URL
             self._auth_mode = "moonshot"
+        elif self._plugin_token:
+            # Token injected by kimi-cli plugin system (OAuth or API key)
+            self.api_key = self._plugin_token
+            # Use kimi-code endpoint if no base_url provided and token looks like OAuth
+            # Otherwise use Moonshot endpoint
+            if not base_url and len(self._plugin_token) > 500:
+                # Likely OAuth JWT token - use kimi-code endpoint
+                self.base_url = self.KIMI_CODE_URL
+                self._auth_mode = "plugin_oauth"
+            else:
+                self.base_url = base_url or self.MOONSHOT_URL
+                self._auth_mode = "plugin_key"
         elif self._oauth_token:
             self.api_key = self._oauth_token
             self.base_url = base_url or self.KIMI_CODE_URL
