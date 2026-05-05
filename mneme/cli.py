@@ -15,6 +15,7 @@ import click
 from mneme import __version__
 from mneme.compat import fix_windows_encoding
 from mneme.config import load_config
+from mneme.updater import is_update_available, print_update_notice, upgrade_package
 
 fix_windows_encoding()
 
@@ -55,9 +56,16 @@ def get_mneme_dir() -> Path:
 
 @click.group()
 @click.version_option(version=__version__, prog_name="mneme")
-def main() -> None:
+@click.option("--no-update-check", is_flag=True, help="Skip version check on startup")
+def main(no_update_check: bool) -> None:
     """kimi-mneme — Persistent memory for Kimi Code CLI."""
-    pass
+    if not no_update_check:
+        try:
+            available, latest = is_update_available()
+            if available and latest:
+                print_update_notice(latest)
+        except Exception:
+            pass  # Silently fail if offline or PyPI unreachable
 
 
 @main.command()
@@ -316,9 +324,19 @@ def get_cmd(ids: str) -> None:
 
 
 @main.command()
-def update() -> None:
-    """Update hooks and config to latest version."""
-    click.echo(" Updating kimi-mneme...")
+@click.option("--upgrade", "do_upgrade", is_flag=True, help="Upgrade package from PyPI")
+def update(do_upgrade: bool) -> None:
+    """Update hooks, config, or upgrade package from PyPI."""
+    if do_upgrade:
+        click.echo("⬆️  Upgrading kimi-mneme from PyPI...")
+        if upgrade_package():
+            click.echo("✅ Upgrade complete!")
+            click.echo("Please restart for changes to take effect.")
+        else:
+            click.echo("❌ Upgrade failed. Try: pip install --upgrade kimi-mneme")
+        return
+
+    click.echo("🔄 Updating kimi-mneme hooks and config...")
 
     # Re-run bootstrap steps
     steps = [
@@ -334,7 +352,7 @@ def update() -> None:
         if not step():
             click.echo(f"  Step '{name}' had issues, continuing...")
 
-    click.echo("\n Update complete!")
+    click.echo("\n✅ Update complete!")
     click.echo("Please restart Kimi CLI for changes to take effect.")
 
 
