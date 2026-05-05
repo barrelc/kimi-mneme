@@ -217,7 +217,7 @@ class ObservationStore:
         limit: int = 10,
         date_from: str | None = None,
         date_to: str | None = None,
-        use_vector: bool = True,
+        use_vector: bool = False,
     ) -> list[dict[str, Any]]:
         """Hybrid search: FTS + fallback LIKE + vector similarity."""
         # Build FTS query with OR between words for better recall

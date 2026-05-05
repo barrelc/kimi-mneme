@@ -85,6 +85,9 @@ def server(port: int, host: str) -> None:
 @click.option("--date-to", help="End date (ISO)")
 @click.option("--project", "-p", help="Project filter")
 @click.option("--type", "obs_type", help="Observation type filter")
+@click.option(
+    "--semantic", is_flag=True, help="Enable semantic search (slower, requires embeddings)"
+)
 def search_cmd(
     query: str,
     limit: int,
@@ -92,6 +95,7 @@ def search_cmd(
     date_to: str | None,
     project: str | None,
     obs_type: str | None,
+    semantic: bool,
 ) -> None:
     """Search memory index (plugin tool wrapper)."""
     from mneme.db.store import ObservationStore
@@ -155,29 +159,32 @@ def search_cmd(
             }
         )
 
-    # 3. Semantic search
-    try:
-        semantic_results = vec_store.search_with_content(query=query, project=project, limit=limit)
-        for sr in semantic_results:
-            obs = sr.get("observation", {})
-            existing_ids = {r["id"] for r in all_results}
-            obs_id = obs.get("id")
-            if obs_id and f"semantic_{obs_id}" not in existing_ids:
-                all_results.append(
-                    {
-                        "id": f"semantic_{obs_id}",
-                        "session_id": obs.get("session_id", ""),
-                        "timestamp": obs.get("created_at"),
-                        "type": obs.get("type", "semantic"),
-                        "tool_name": sr.get("matched_field", ""),
-                        "file_path": None,
-                        "snippet": obs.get("title", ""),
-                        "source": "semantic",
-                        "distance": sr.get("distance"),
-                    }
-                )
-    except Exception:
-        pass
+    # 3. Semantic search (optional — slow without cached embeddings)
+    if semantic:
+        try:
+            semantic_results = vec_store.search_with_content(
+                query=query, project=project, limit=limit
+            )
+            for sr in semantic_results:
+                obs = sr.get("observation", {})
+                existing_ids = {r["id"] for r in all_results}
+                obs_id = obs.get("id")
+                if obs_id and f"semantic_{obs_id}" not in existing_ids:
+                    all_results.append(
+                        {
+                            "id": f"semantic_{obs_id}",
+                            "session_id": obs.get("session_id", ""),
+                            "timestamp": obs.get("created_at"),
+                            "type": obs.get("type", "semantic"),
+                            "tool_name": sr.get("matched_field", ""),
+                            "file_path": None,
+                            "snippet": obs.get("title", ""),
+                            "source": "semantic",
+                            "distance": sr.get("distance"),
+                        }
+                    )
+        except Exception:
+            pass
 
     # 4. Wire events
     wire_results = wire_store.search_wire_events(query=query, limit=limit)
@@ -701,7 +708,7 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
         "tools": [
             {
                 "name": "mneme_search",
-                "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure. Searches across raw observations, structured observations, semantic embeddings, and wire events.",
+                "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure. Searches across raw observations, structured observations, and wire events. Semantic search available via --semantic flag (slower, requires embeddings).",
                 "command": ["mneme", "search", "--query", "{{query}}"],
                 "parameters": {
                     "type": "object",
