@@ -116,12 +116,12 @@ class KimiClient(BaseLLMClient):
         **kwargs: Any,
     ) -> None:
         super().__init__(model=model, timeout=timeout, **kwargs)
-        
+
         # Priority: 1) explicit api_key 2) MOONSHOT_API_KEY env 3) OAuth token
         self._explicit_key = api_key
         self._moonshot_key = os.getenv("MOONSHOT_API_KEY")
         self._oauth_token = self._load_oauth_token()
-        
+
         # Determine which credentials to use
         if api_key:
             self.api_key = api_key
@@ -176,7 +176,7 @@ class KimiClient(BaseLLMClient):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        
+
         # Add OAuth headers only for kimi-code endpoint
         if self._auth_mode == "oauth":
             headers.update(_kimi_common_headers())
