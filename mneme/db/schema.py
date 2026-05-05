@@ -460,7 +460,7 @@ MIGRATIONS: list[tuple[int, str]] = [
     (
         16,
         """
-        -- sqlite-vec virtual tables for semantic search (replaces ChromaDB on Windows)
+        -- sqlite-vec virtual tables for semantic search
         -- Note: vec0 tables are created lazily by SQLiteVecStore when extension is loaded
         CREATE TABLE IF NOT EXISTS vec_sync_state (
             table_name TEXT PRIMARY KEY,

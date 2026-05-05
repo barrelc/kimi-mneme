@@ -10,7 +10,7 @@ kimi-mneme consists of 4 layers that work together to capture, compress, store, 
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
 │  │  Lifecycle   │  │   Plugin     │  │      User Prompts        │  │
 │  │   Hooks      │  │   Tools      │  │                          │  │
-│  │  (13 events) │  │ (3 commands) │  │                          │  │
+│  │  (7 hooks) │  │ (3 commands) │  │                          │  │
 │  └──────┬───────┘  └──────┬───────┘  └──────────────────────────┘  │
 └─────────┼─────────────────┼─────────────────────────────────────────┘
           │                 │
@@ -37,7 +37,7 @@ kimi-mneme consists of 4 layers that work together to capture, compress, store, 
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         Storage Layer                                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │   SQLite     │  │    Chroma    │  │      Web Server          │  │
+│  │   SQLite     │  │  sqlite-vec  │  │      Web Server          │  │
 │  │              │  │   (vectors)  │  │                          │  │
 │  │ - Sessions   │  │              │  │ - FastAPI app            │  │
 │  │ - Observations│  │ - Embeddings │  │ - REST API               │  │
@@ -73,7 +73,7 @@ Raw observations → Sanitization pipeline (3-layer privacy filter)
      ↓
 Extractor (clean & structure)
      ↓
-Compressor (Moonshot API) → Semantic summary
+Compressor (configurable LLM: Kimi/Ollama/OpenAI-compatible) → Semantic summary
      ↓
 Store summary + keywords in SQLite
      ↓
@@ -95,7 +95,7 @@ Check for previous checkpoints → Inject resume context
      ↓
 Query cross-session patterns → Inject recurring patterns
      ↓
-Injector queries Chroma (vector search)
+Injector queries sqlite-vec (vector search)
      ↓
 Rank by relevance + recency
      ↓
@@ -109,7 +109,7 @@ Inject into system prompt
 ```
 User asks "find that auth bug" → AI calls mneme_search
      ↓
-Plugin tool → Hybrid search (SQLite FTS + Chroma vectors)
+Plugin tool → Hybrid search (SQLite FTS + sqlite-vec vectors)
      ↓
 Progressive disclosure:
   Layer 1: Compact index (~50 tokens/result)
@@ -162,7 +162,7 @@ CREATE TABLE summaries (
     observation_ids TEXT,  -- JSON array of source observation IDs
     content TEXT NOT NULL,
     keywords TEXT,  -- JSON array
-    embedding_id TEXT,  -- Chroma document ID
+    embedding_id TEXT  -- vec table reference
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES sessions(id)
 );
@@ -234,7 +234,7 @@ CREATE VIRTUAL TABLE observations_fts USING fts5(
 );
 ```
 
-### Chroma Vector DB
+### sqlite-vec Vector DB
 
 ```python
 # Collection: mneme_observations
@@ -454,6 +454,6 @@ Summary:
 
 - All hook commands run in isolated subprocess
 - Database is local-only (no network access)
-- API key stored in config, not in code
+- API key stored in config or env var, not in code
 - Privacy tags prevent accidental data leakage
 - Truncated outputs preserve head/tail previews without full content

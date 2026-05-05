@@ -11,7 +11,7 @@ from loguru import logger
 from mneme.config import load_config
 from mneme.db.store import ObservationStore
 from mneme.db.structured_store import StructuredObservationStore
-from mneme.db.vector import SQLiteVecStore, VectorStore
+from mneme.db.vector import SQLiteVecStore
 
 
 class Injector:
@@ -32,7 +32,6 @@ class Injector:
         )
         self.store = store if store is not None else ObservationStore()
         self.structured_store = StructuredObservationStore()
-        self.vector_store = VectorStore()
         self.sqlite_vec = SQLiteVecStore()
 
     def get_context(self, cwd: str, current_session_id: str | None = None) -> str | None:
@@ -232,7 +231,7 @@ class Injector:
             return []
 
     def _vector_search_sessions(self, cwd: str) -> list[dict[str, Any]]:
-        """Find semantically similar sessions via vector search (legacy Chroma fallback).
+        """Find semantically similar sessions via vector search (raw observations).
 
         Searches for sessions related to the current project context.
         """

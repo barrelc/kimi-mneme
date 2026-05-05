@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Kimi CLI](https://img.shields.io/badge/Kimi%20CLI-plugin-orange.svg)](https://moonshotai.github.io/kimi-cli/)
 
-**Version:** <!-- VERSION -->2.0.7<!-- /VERSION -->
+**Version:** <!-- VERSION -->2.0.8<!-- /VERSION -->
 
 > **Mneme** (Greek: Μνήμη) — the goddess of memory and the mother of the Muses.  
 > This project brings persistent, AI-compressed memory to [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/).
@@ -45,7 +45,7 @@ kimi-mneme is designed to work **fully offline** with graceful degradation when 
 | **Web viewer** | ✅ Full | ✅ Full |
 | **MCP tools** | ✅ Full | ✅ Full |
 
-> **Privacy note:** When AI structuring is enabled, tool outputs are sent to the Moonshot API **after** applying 3-layer sanitization (system content stripped, secrets redacted, privacy tags removed). No raw credentials, tokens, or `<private>` blocks ever leave your machine. To keep everything 100% local, disable AI structuring in config.
+> **Privacy note:** When AI structuring is enabled, tool outputs are sent to the configured LLM provider **after** applying 3-layer sanitization (system content stripped, secrets redacted, privacy tags removed). No raw credentials, tokens, or `<private>` blocks ever leave your machine. Use **Ollama** or other local LLM for 100% offline operation with zero network calls.
 
 ### Who is this for?
 
@@ -59,7 +59,7 @@ kimi-mneme is designed to work **fully offline** with graceful degradation when 
 | Feature | Description |
 |---------|-------------|
 | 🧠 **Persistent Memory** | Context survives across sessions, restarts, and reboots |
-| 🤖 **AI Structuring** | Raw tool outputs → structured observations (title, facts, narrative, concepts) via Kimi API |
+| 🤖 **AI Structuring** | Raw tool outputs → structured observations (title, facts, narrative, concepts) via configurable LLM (Kimi, Ollama, OpenAI-compatible) |
 | ⚡ **Heuristic Fallback** | Works without API key — rule-based structuring when Kimi is unavailable |
 | 🔍 **Smart Search** | Full-text (FTS5) + semantic (sqlite-vec) hybrid search across your project history |
 | 📊 **Progressive Disclosure** | 3-layer retrieval: index → timeline → full details (token-efficient) |
@@ -191,7 +191,7 @@ open http://localhost:37777
 ```mermaid
 flowchart TB
     subgraph kimi_cli["🖥️ Kimi Code CLI"]
-        hooks["🔌 Hooks<br/>13 lifecycle events"]
+        hooks["🔌 Hooks<br/>7 lifecycle events"]
         plugin["🔧 Plugin Tools<br/>3 AI-callable tools"]
         prompts["💬 User Prompts"]
     end
@@ -237,14 +237,14 @@ flowchart TB
 
 | Component | Purpose |
 |-----------|---------|
-| **Hooks** | 13 lifecycle event handlers (SessionStart, PostToolUse, SessionEnd, PostCompact, etc.) |
+| **Hooks** | 7 lifecycle event handlers (SessionStart, PostToolUse, SessionEnd, PreCompact, PostCompact, etc.) |
 | **Plugin** | 3 AI-callable tools: `mneme_search`, `mneme_timeline`, `mneme_get` |
 | **Extractor** | Parses observations, detects truncation, creates checkpoints, detects patterns |
-| **Compressor** | Generates semantic summaries via Kimi API (reuses OAuth token) |
+| **Compressor** | Generates semantic summaries via configurable LLM (Kimi API, Ollama, OpenAI-compatible) |
 | **Injector** | Injects checkpoints, patterns, and relevant past context at session start |
 | **SQLite** | Stores sessions, observations, summaries, checkpoints, patterns, compaction events |
 | **sqlite-vec** | SQLite extension for semantic similarity search (primary, cross-platform) |
-| **Chroma** | Vector database for semantic similarity search (legacy fallback, Linux/Mac only) |
+| **sqlite-vec** | SQLite extension for semantic similarity search (primary, cross-platform) |
 | **Web Server** | FastAPI-based API on port 37777 — real-time SSE event stream |
 
 ---
@@ -287,7 +287,7 @@ This merges with global config (project values override global).
 
 - [Installation Guide](docs/INSTALL.md) — Detailed setup and configuration
 - [Architecture](docs/ARCHITECTURE.md) — Deep dive into system design
-- [Hooks Reference](docs/HOOKS.md) — All 13 lifecycle events explained
+- [Hooks Reference](docs/HOOKS.md) — All 7 lifecycle events explained
 - [Plugin Tools](docs/TOOLS.md) — How AI queries memory
 - [Web UI](docs/WEB_UI.md) — Using the memory viewer
 - [Configuration](docs/CONFIG.md) — Settings and environment variables
@@ -302,7 +302,7 @@ This merges with global config (project values override global).
 - **Kimi Code CLI**: 1.41+
 - **sqlite3 CLI**: Required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.)
 - **OS**: Windows, macOS, Linux
-- **Optional**: No API key needed — reuses Kimi CLI OAuth token. AI structuring/compression gracefully degrade to heuristic mode when offline
+- **Optional**: No API key needed for Kimi — reuses Kimi CLI OAuth token. Or use Ollama/OpenAI-compatible for local/self-hosted LLMs. AI structuring/compression gracefully degrade to heuristic mode when offline
 
 ---
 

@@ -14,7 +14,7 @@ from loguru import logger
 
 from mneme.config import load_config
 from mneme.db.schema import get_connection
-from mneme.db.vector import VectorStore
+from mneme.db.vector import SQLiteVecStore
 
 
 @dataclass
@@ -62,7 +62,7 @@ class ObservationStore:
     def __init__(self, db_path: str | None = None) -> None:
         config = load_config()
         self.db_path = db_path or config["db"]["path"]
-        self.vector_store = VectorStore()
+        self.sqlite_vec = SQLiteVecStore(db_path=self.db_path)
         self._ensure_db()
         self._local = threading.local()
 
@@ -165,17 +165,14 @@ class ObservationStore:
             obs_id = cursor.lastrowid
 
         if obs_id and not skip_vector:
-            # Add to vector store for semantic search
+            # Add to sqlite-vec for semantic search
             if content:
-                self.vector_store.add(
+                self.sqlite_vec.add_raw_observation(
                     observation_id=obs_id,
                     session_id=observation.session_id,
                     content=content,
-                    metadata={
-                        "event_type": observation.event_type,
-                        "tool_name": observation.tool_name or "",
-                        "file_path": observation.file_path or "",
-                    },
+                    event_type=observation.event_type,
+                    tool_name=observation.tool_name or "",
                 )
             logger.debug(f"Observation added: {obs_id}")
         else:
@@ -322,11 +319,11 @@ class ObservationStore:
                             }
                         )
 
-        # Vector search
+        # Vector search (sqlite-vec)
         vector_results = []
         if use_vector:
             try:
-                vector_results = self.vector_store.search(query, limit=limit)
+                vector_results = self.sqlite_vec.search_raw(query, limit=limit)
             except Exception as e:
                 logger.debug(f"Vector search skipped: {e}")
 
@@ -340,10 +337,10 @@ class ObservationStore:
                         "id": obs_id,
                         "session_id": vr.get("session_id"),
                         "event_type": "VectorMatch",
-                        "tool_name": None,
+                        "tool_name": vr.get("tool_name"),
                         "file_path": None,
                         "created_at": None,
-                        "snippet": vr.get("snippet", ""),
+                        "snippet": "",
                         "vector_distance": vr.get("distance"),
                     }
                 )

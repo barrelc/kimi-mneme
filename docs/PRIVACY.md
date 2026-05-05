@@ -57,7 +57,7 @@ Add to `~/.kimi/mneme/config.json`:
 
 ## What Gets Sent to the AI API
 
-When AI structuring or compression is enabled, the following data is sent to the Moonshot API **after** sanitization:
+When AI structuring or compression is enabled, the following data is sent to the configured LLM provider (Kimi API, Ollama, or OpenAI-compatible API) **after** sanitization:
 
 ### AI Structuring (per observation)
 - **Tool name** — e.g., `WriteFile`, `Shell`
@@ -98,7 +98,7 @@ Sent to API
 | GitHub tokens | ❌ No | Redacted by regex patterns |
 | Raw `~/.kimi/credentials` | ❌ No | Only OAuth token is read locally for auth |
 
-> **Important:** The OAuth token from `~/.kimi/credentials/kimi-code.json` is read locally and used only for API authentication. It is never included in the data sent for structuring or compression.
+> **Important:** The OAuth token from `~/.kimi/credentials/kimi-code.json` is read locally and used only for Kimi API authentication. It is never included in the data sent for structuring or compression. When using Ollama or other local LLMs, no external network calls are made.
 
 ## Data Location
 
@@ -107,7 +107,7 @@ All data is stored locally:
 ```
 ~/.kimi/mneme/
 ├── mneme.db          # SQLite database
-├── chroma/           # Vector database
+├── vectors/          # Embeddings cache (optional)
 ├── config.json       # Configuration
 ├── backups/          # Automatic backups
 └── mneme.log         # Log file
@@ -116,8 +116,8 @@ All data is stored locally:
 > **Note:** `sqlite3` CLI is required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.).
 
 Nothing is sent to external servers except:
-- AI compression (if enabled, sent to Moonshot API)
-- You control the API key and can disable compression
+- AI structuring/compression (if enabled, sent to the configured LLM provider)
+- You control the provider and can disable AI features entirely
 
 ## Disabling AI Features (100% Local Mode)
 

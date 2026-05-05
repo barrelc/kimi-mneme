@@ -21,18 +21,33 @@ DEFAULT_CONFIG = {
         "chunk_size": 512,
         "chunk_overlap": 50,
     },
-    "compression": {
-        "enabled": True,
+    "llm": {
+        # Default LLM provider for all AI features (structuring, compression, etc.)
+        # Supported: "kimi", "ollama", "openai_compatible"
         "provider": "kimi",
         "model": "kimi-k2.5",
+        # For Ollama: "http://localhost:11434"
+        # For openai_compatible: e.g. "http://localhost:8000/v1"
+        "base_url": None,
+        "api_key": None,  # For Kimi or OpenAI-compatible APIs
+        "timeout": 60.0,
+        # Provider-specific extra options (passed to the client)
+        "options": {},
+    },
+    "compression": {
+        "enabled": True,
+        # Override llm.provider if you want different LLM for compression
+        "provider": None,  # null = use llm.provider
+        "model": None,     # null = use llm.model
         "batch_size": 10,
         "min_observations": 5,
         "trigger": "session_end",
     },
     "structuring": {
         "enabled": True,
-        "ai_provider": "kimi",
-        "ai_model": "kimi-k2.5",
+        # Override llm.provider if you want different LLM for structuring
+        "provider": None,  # null = use llm.provider
+        "model": None,     # null = use llm.model
         "fallback_to_heuristic": True,
         "heuristic_threshold_chars": 300,
         "batch_size": 5,
@@ -176,7 +191,10 @@ def _apply_env_overrides(config: dict[str, Any]) -> dict[str, Any]:
         "MNEME_SERVER_HOST": ("server", "host"),
         "MNEME_LOG_LEVEL": ("logging", "level"),
         "MNEME_STRUCTURING_ENABLED": ("structuring", "enabled"),
-        "MNEME_AI_MODEL": ("structuring", "ai_model"),
+        "MNEME_LLM_PROVIDER": ("llm", "provider"),
+        "MNEME_LLM_MODEL": ("llm", "model"),
+        "MNEME_LLM_BASE_URL": ("llm", "base_url"),
+        "MNEME_LLM_API_KEY": ("llm", "api_key"),
     }
 
     for env_var, (section, key) in env_map.items():

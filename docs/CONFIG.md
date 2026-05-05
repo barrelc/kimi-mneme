@@ -16,36 +16,60 @@ Created automatically on first run with sensible defaults.
     "backup_interval_days": 7
   },
   "vector": {
-    "path": "~/.kimi/mneme/chroma",
+    "path": "~/.kimi/mneme/vectors",
     "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
     "chunk_size": 512,
     "chunk_overlap": 50
   },
+  "llm": {
+    "provider": "kimi",
+    "model": "kimi-k2.5",
+    "base_url": null,
+    "api_key": null,
+    "timeout": 60.0,
+    "options": {}
+  },
   "compression": {
     "enabled": true,
-    "provider": "moonshot",
-    "model": "moonshot-v1-8k",
-    "api_key": "${MOONSHOT_API_KEY}",
+    "provider": null,
+    "model": null,
     "batch_size": 10,
     "min_observations": 5,
     "trigger": "session_end"
   },
+  "structuring": {
+    "enabled": true,
+    "provider": null,
+    "model": null,
+    "fallback_to_heuristic": true,
+    "heuristic_threshold_chars": 300,
+    "batch_size": 5,
+    "worker_interval_seconds": 5,
+    "max_retry_count": 3
+  },
   "injection": {
     "enabled": true,
-    "max_tokens": 2000,
+    "max_tokens": 1500,
     "min_relevance": 0.7,
-    "max_results": 5,
+    "max_results": 2,
     "recency_boost_days": 7,
     "format": "markdown",
-    "include_patterns": true,
-    "include_checkpoints": true
+    "use_vector": false
   },
   "server": {
     "enabled": true,
+    "auto_start": true,
     "host": "127.0.0.1",
     "port": 37777,
-    "cors_origins": ["http://localhost:37777"],
-    "auth_token": null
+    "cors_origins": ["http://localhost:37777", "http://127.0.0.1:37777"],
+    "auth_token": null,
+    "loop": "auto"
+  },
+  "mcp": {
+    "enabled": true,
+    "auto_start": false,
+    "transport": "stdio",
+    "port": 37778
   },
   "privacy": {
     "exclude_tags": ["<private>", "<secret>"],
@@ -91,45 +115,115 @@ Created automatically on first run with sensible defaults.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `vector.path` | string | `~/.kimi/mneme/chroma` | Chroma DB directory |
+| `vector.path` | string | `~/.kimi/mneme/vectors` | Vector store directory (embeddings cache) |
 | `vector.embedding_model` | string | `sentence-transformers/all-MiniLM-L6-v2` | Model for embeddings |
 | `vector.chunk_size` | integer | `512` | Text chunk size for embedding |
 | `vector.chunk_overlap` | integer | `50` | Overlap between chunks |
+
+### LLM (Global Settings)
+
+The `llm` section defines the default provider for all AI-powered features (structuring, compression). Individual sections (`compression`, `structuring`) can override these with their own `provider` and `model`.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `llm.provider` | string | `kimi` | LLM provider: `kimi`, `ollama`, `openai_compatible` |
+| `llm.model` | string | `kimi-k2.5` | Model name (provider-specific) |
+| `llm.base_url` | string | `null` | Custom base URL for the API |
+| `llm.api_key` | string | `null` | API key or token |
+| `llm.timeout` | float | `60.0` | Request timeout in seconds |
+| `llm.options` | object | `{}` | Provider-specific extra options |
+
+#### Provider Examples
+
+**Kimi** (default, uses OAuth token from kimi-cli):
+```json
+{
+  "llm": {
+    "provider": "kimi",
+    "model": "kimi-k2.5"
+  }
+}
+```
+
+**Ollama** (local):
+```json
+{
+  "llm": {
+    "provider": "ollama",
+    "model": "llama3.2",
+    "base_url": "http://localhost:11434"
+  }
+}
+```
+
+**OpenAI-compatible** (vLLM, LM Studio, etc.):
+```json
+{
+  "llm": {
+    "provider": "openai_compatible",
+    "model": "qwen2.5-coder",
+    "base_url": "http://localhost:8000/v1",
+    "api_key": "sk-optional"
+  }
+}
+```
 
 ### Compression (AI Summarization)
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `compression.enabled` | boolean | `true` | Enable AI compression |
-| `compression.provider` | string | `moonshot` | LLM provider |
-| `compression.model` | string | `moonshot-v1-8k` | Model name |
-| `compression.api_key` | string | `${MOONSHOT_API_KEY}` | API key (supports env var) |
+| `compression.provider` | string | `null` | Override `llm.provider` (null = use global) |
+| `compression.model` | string | `null` | Override `llm.model` (null = use global) |
 | `compression.batch_size` | integer | `10` | Observations per batch |
 | `compression.min_observations` | integer | `5` | Min observations to compress |
 | `compression.trigger` | string | `session_end` | When to compress: `session_end`, `threshold`, `manual` |
+
+### Structuring
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `structuring.enabled` | boolean | `true` | Enable AI structuring |
+| `structuring.provider` | string | `null` | Override `llm.provider` (null = use global) |
+| `structuring.model` | string | `null` | Override `llm.model` (null = use global) |
+| `structuring.fallback_to_heuristic` | boolean | `true` | Use heuristic when AI fails |
+| `structuring.heuristic_threshold_chars` | integer | `300` | Use heuristic for short outputs |
+| `structuring.batch_size` | integer | `5` | Observations per batch |
+| `structuring.worker_interval_seconds` | integer | `5` | Worker poll interval |
+| `structuring.max_retry_count` | integer | `3` | Max retries per observation |
 
 ### Context Injection
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `injection.enabled` | boolean | `true` | Inject past context at session start |
-| `injection.max_tokens` | integer | `2000` | Max tokens to inject |
+| `injection.max_tokens` | integer | `1500` | Max tokens to inject |
 | `injection.min_relevance` | float | `0.7` | Minimum relevance score (0.0–1.0) |
-| `injection.max_results` | integer | `5` | Max sessions to inject |
+| `injection.max_results` | integer | `2` | Max sessions to inject |
 | `injection.recency_boost_days` | integer | `7` | Only consider sessions within N days |
 | `injection.format` | string | `markdown` | Output format: `markdown`, `json`, `plain` |
-| `injection.include_patterns` | boolean | `true` | Include cross-session patterns in injection |
-| `injection.include_checkpoints` | boolean | `true` | Include session checkpoints in injection |
+| `injection.use_vector` | boolean | `false` | Use vector search for relevance scoring |
 
 ### Web Server
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `server.enabled` | boolean | `true` | Start web server |
+| `server.auto_start` | boolean | `true` | Auto-start server on launch |
 | `server.host` | string | `127.0.0.1` | Bind address |
 | `server.port` | integer | `37777` | Port number |
-| `server.cors_origins` | array | `["http://localhost:37777"]` | Allowed CORS origins |
+| `server.cors_origins` | array | `["http://localhost:37777", "http://127.0.0.1:37777"]` | Allowed CORS origins |
 | `server.auth_token` | string | `null` | Optional Bearer token |
+| `server.loop` | string | `auto` | Event loop: `auto`, `asyncio`, `winloop` (Windows only) |
+
+### MCP Server
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `mcp.enabled` | boolean | `true` | Enable MCP server |
+| `mcp.auto_start` | boolean | `false` | Auto-start MCP with FastAPI |
+| `mcp.transport` | string | `stdio` | Transport: `stdio` or `sse` |
+| `mcp.port` | integer | `37778` | Port for SSE transport |
 
 ### Privacy
 
@@ -166,11 +260,17 @@ All config values can be overridden via environment variables:
 export MNEME_DB_PATH="/custom/path/mneme.db"
 
 # Vector store
-export MNEME_CHROMA_PATH="/custom/path/chroma"
+# Vector store (embeddings cache, optional)
+# export MNEME_VECTOR_PATH="/custom/path/vectors"
 
-# Compression
-export MOONSHOT_API_KEY="sk-..."
-export MNEME_COMPRESSION_ENABLED="true"
+# LLM provider
+export MNEME_LLM_PROVIDER="ollama"
+export MNEME_LLM_MODEL="llama3.2"
+export MNEME_LLM_BASE_URL="http://localhost:11434"
+export MNEME_LLM_API_KEY="sk-..."
+
+# Structuring
+export MNEME_STRUCTURING_ENABLED="true"
 
 # Server
 export MNEME_SERVER_PORT="37777"
@@ -188,6 +288,10 @@ Create `.mneme.json` in project root for project-specific settings:
 
 ```json
 {
+  "llm": {
+    "provider": "ollama",
+    "model": "codellama"
+  },
   "privacy": {
     "exclude_patterns": ["*.local.env", "secrets/"]
   },

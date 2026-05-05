@@ -126,12 +126,14 @@ Create `~/.kimi/mneme/config.json`:
     "path": "~/.kimi/mneme/mneme.db"
   },
   "vector": {
-    "path": "~/.kimi/mneme/chroma"
+    "path": "~/.kimi/mneme/vectors"
+  },
+  "llm": {
+    "provider": "kimi",
+    "model": "kimi-k2.5"
   },
   "compression": {
-    "enabled": true,
-    "model": "moonshot-v1-8k",
-    "api_key": "${MOONSHOT_API_KEY}"
+    "enabled": true
   },
   "injection": {
     "enabled": true,
@@ -170,9 +172,12 @@ Project config merges with global config (project values override global).
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MNEME_DB_PATH` | SQLite database path | `~/.kimi/mneme/mneme.db` |
-| `MNEME_CHROMA_PATH` | Chroma vector DB path | `~/.kimi/mneme/chroma` |
+| `MNEME_VECTOR_PATH` | Vector embeddings cache path | `~/.kimi/mneme/vectors` |
 | `MNEME_SERVER_PORT` | Web server port | `37777` |
-| `MOONSHOT_API_KEY` | API key for AI compression | — |
+| `MNEME_LLM_PROVIDER` | LLM provider: `kimi`, `ollama`, `openai_compatible` | `kimi` |
+| `MNEME_LLM_MODEL` | Model name | `kimi-k2.5` |
+| `MNEME_LLM_BASE_URL` | Custom API base URL | — |
+| `MNEME_LLM_API_KEY` | API key for LLM provider | — |
 | `MNEME_LOG_LEVEL` | Logging level | `INFO` |
 | `MNEME_SERVER_HOST` | Web server host | `127.0.0.1` |
 

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from mneme import __version__
 from mneme.db.store import ObservationStore
 from mneme.db.structured_store import StructuredObservationStore
-from mneme.db.vector import SQLiteVecStore, VectorStore
+from mneme.db.vector import SQLiteVecStore
 from mneme.db.wire_store import WireStore
 
 router = APIRouter()
@@ -115,14 +115,9 @@ async def get_stats(
     store = ObservationStore()
     stats = store.get_stats()
 
-    # Add vector store stats (sqlite-vec primary, Chroma fallback)
+    # Add vector store stats (sqlite-vec)
     vec_store = SQLiteVecStore()
-    vec_stats = vec_store.get_stats()
-    if not vec_stats.get("enabled"):
-        # Fallback to Chroma stats
-        vector_store = VectorStore()
-        vec_stats = vector_store.get_stats()
-    stats["vector_store"] = vec_stats
+    stats["vector_store"] = vec_store.get_stats()
 
     # Add real token economics (B.4)
     economics = store.get_token_economics()

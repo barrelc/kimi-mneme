@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from mneme.core.ai_provider import HybridProvider, _load_kimi_token
+from mneme.core.ai_provider import HybridProvider
 from mneme.core.heuristic_structuring import HeuristicStructuring
+from mneme.core.llm_client import KimiClient
 from mneme.core.prompts.json_parser import parse_observation_json
 
 
 class TestLoadKimiToken:
     def test_load_without_credentials(self):
         # Should return None when credentials don't exist
-        token = _load_kimi_token()
+        token = KimiClient._load_token()
         # We can't know if user has credentials, but function shouldn't crash
         assert token is None or isinstance(token, str)
 
@@ -88,13 +89,29 @@ class TestParseObservationJson:
 
 class TestHybridProvider:
     def test_heuristic_fallback_when_ai_disabled(self):
-        provider = HybridProvider()
-        # If no Kimi token, should use heuristic
-        if not provider.ai.enabled:
-            import asyncio
+        # Create provider with a disabled AI (no valid client)
+        from mneme.core.ai_provider import ConfigurableAIProvider
 
-            result = asyncio.get_event_loop().run_until_complete(
-                provider.structure_observation("WriteFile", {"path": "x.py"}, "ok", None)
-            )
-            assert result is not None
-            assert result.source == "heuristic"
+        ai = ConfigurableAIProvider(provider="kimi", enabled=False)
+        provider = HybridProvider(ai_provider=ai)
+
+        import asyncio
+
+        result = asyncio.get_event_loop().run_until_complete(
+            provider.structure_observation("WriteFile", {"path": "x.py"}, "ok", None)
+        )
+        assert result is not None
+        assert result.source == "heuristic"
+
+    def test_ollama_provider_creation(self):
+        from mneme.core.llm_client import OllamaClient
+
+        client = OllamaClient(model="llama3.2")
+        assert client.model == "llama3.2"
+        assert client.base_url == "http://localhost:11434"
+
+    def test_openai_compatible_provider_requires_base_url(self):
+        from mneme.core.llm_client import create_llm_client
+
+        client = create_llm_client(provider="openai_compatible", base_url=None)
+        assert client is None

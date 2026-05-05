@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
-import httpx
 from loguru import logger
 
-from mneme.core.ai_provider import _load_kimi_token
+from mneme.core.llm_client import LLMMessage, create_llm_client
 
 COMPRESSION_PROMPT = """You are a coding session summarizer. Your task is to create a concise,
 semantic summary of the following coding session observations.
@@ -28,13 +28,26 @@ Summary:"""
 
 
 class Compressor:
-    """Compress observations into semantic summaries using Kimi API."""
+    """Compress observations into semantic summaries using configurable LLM."""
 
-    def __init__(self) -> None:
-        self.token = _load_kimi_token()
-        self.enabled = bool(self.token)
-        self.model = "kimi-k2.5"
-        self.batch_size = 50
+    def __init__(
+        self,
+        provider: str = "kimi",
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        batch_size: int = 50,
+        **kwargs: Any,
+    ) -> None:
+        self.client = create_llm_client(
+            provider=provider,
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+            **kwargs,
+        )
+        self.enabled = (self.client is not None) and self.client.enabled
+        self.batch_size = batch_size
 
     def _format_observations(self, observations: list[dict[str, Any]]) -> str:
         """Format observations for the LLM prompt."""
@@ -78,30 +91,21 @@ class Compressor:
             formatted = self._format_observations(observations)
             prompt = COMPRESSION_PROMPT.format(observations=formatted)
 
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    "https://api.kimi.com/coding/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.token}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": "You are a helpful coding session summarizer.",
-                            },
-                            {"role": "user", "content": prompt},
-                        ],
-                        "temperature": 0.3,
-                        "max_tokens": 1000,
-                    },
-                )
-                response.raise_for_status()
-                data = response.json()
+            response = await self.client.chat(  # type: ignore[union-attr]
+                messages=[
+                    LLMMessage(
+                        role="system",
+                        content="You are a helpful coding session summarizer.",
+                    ),
+                    LLMMessage(role="user", content=prompt),
+                ],
+                temperature=0.3,
+                max_tokens=1000,
+            )
+            if response is None:
+                return None
 
-            summary = data["choices"][0]["message"]["content"]
+            summary = response.content
             keywords = self._extract_keywords(summary)
 
             return {
@@ -115,8 +119,6 @@ class Compressor:
 
     def _extract_keywords(self, text: str) -> list[str]:
         """Extract keywords from summary using simple heuristics."""
-        import re
-
         # File paths
         files = re.findall(
             r"[\w\-./]+\.(py|js|ts|jsx|tsx|go|rs|java|cpp|c|h|yaml|yml|json|toml|md)", text

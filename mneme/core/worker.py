@@ -7,9 +7,34 @@ import asyncio
 from loguru import logger
 
 from mneme.config import load_config
-from mneme.core.ai_provider import HybridProvider
+from mneme.core.ai_provider import ConfigurableAIProvider, HybridProvider
 from mneme.db.store import ObservationStore
 from mneme.db.structured_store import StructuredObservationStore
+
+
+def _build_ai_provider_from_config(config: dict) -> ConfigurableAIProvider:
+    """Create AI provider from config, respecting per-feature overrides."""
+    llm_cfg = config.get("llm", {})
+    struct_cfg = config.get("structuring", {})
+
+    # Structuring can override the global LLM settings
+    provider = struct_cfg.get("provider") or llm_cfg.get("provider", "kimi")
+    model = struct_cfg.get("model") or llm_cfg.get("model")
+    base_url = llm_cfg.get("base_url")
+    api_key = llm_cfg.get("api_key")
+    timeout = llm_cfg.get("timeout", 30.0)
+    enabled = struct_cfg.get("enabled", True)
+    options = llm_cfg.get("options", {})
+
+    return ConfigurableAIProvider(
+        provider=provider,
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
+        timeout=timeout,
+        enabled=enabled,
+        **options,
+    )
 
 
 class StructuringWorker:
@@ -20,7 +45,8 @@ class StructuringWorker:
         struct_cfg = config.get("structuring", {})
         self.store = ObservationStore()
         self.structured_store = StructuredObservationStore()
-        self.provider = HybridProvider()
+        ai_provider = _build_ai_provider_from_config(config)
+        self.provider = HybridProvider(ai_provider=ai_provider)
         self.running = False
         self.enabled = struct_cfg.get("enabled", True)
         self.interval = interval or struct_cfg.get("worker_interval_seconds", 5)
@@ -78,7 +104,7 @@ class StructuringWorker:
                         project=self._extract_project(msg.get("cwd", "")),
                         raw_observation_id=msg.get("raw_observation_id"),
                         source=result.source,
-                        model="kimi-k2.5" if result.source == "ai" else None,
+                        model=result.source,
                     )
 
                 self.store.mark_message_processed(msg["id"])

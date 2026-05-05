@@ -1,9 +1,8 @@
-"""Vector storage using ChromaDB or sqlite-vec for semantic similarity search."""
+"""Vector storage using sqlite-vec for semantic similarity search."""
 
 from __future__ import annotations
 
 import sqlite3
-import sys
 import threading
 from typing import Any
 
@@ -12,31 +11,6 @@ from loguru import logger
 
 from mneme.config import load_config
 from mneme.db.schema import get_connection
-
-_CHROMA_BROKEN_WARNED = False
-
-
-def _is_chroma_broken_on_windows() -> bool:
-    """Check if chromadb >= 1.0 on Windows has known segfault issues."""
-    global _CHROMA_BROKEN_WARNED
-    if sys.platform != "win32":
-        return False
-    try:
-        import chromadb
-
-        version = getattr(chromadb, "__version__", "0")
-        major = int(version.split(".")[0])
-        broken = major >= 1
-        if broken and not _CHROMA_BROKEN_WARNED:
-            _CHROMA_BROKEN_WARNED = True
-            logger.warning(
-                "ChromaDB >= 1.0 on Windows has known stability issues (segfault). "
-                "Falling back to sqlite-vec for vector search."
-            )
-        return broken
-    except Exception:
-        return False
-
 
 # ---------------------------------------------------------------------------
 # Embedding helper
@@ -93,242 +67,7 @@ def _numpy_to_blob(embedding: np.ndarray) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# ChromaDB (legacy, disabled on Windows >= 1.0)
-# ---------------------------------------------------------------------------
-
-
-class VectorStore:
-    """Store and search observation embeddings via ChromaDB."""
-
-    def __init__(self, persist_dir: str | None = None) -> None:
-        config = load_config()
-        self.persist_dir = persist_dir or config["vector"]["path"]
-        self.embedding_model = config["vector"]["embedding_model"]
-        self._client: Any = None
-        self._collection: Any = None
-        self._embedding_fn: Any = None
-        self._disabled = _is_chroma_broken_on_windows()
-
-    def _get_client(self) -> Any:
-        """Lazy-init Chroma client."""
-        if self._disabled:
-            return None
-        if self._client is None:
-            try:
-                import chromadb
-                from chromadb.utils import embedding_functions
-
-                self._client = chromadb.PersistentClient(path=self.persist_dir)
-                self._embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-                    model_name=self.embedding_model
-                )
-                self._collection = self._client.get_or_create_collection(
-                    name="mneme_observations",
-                    embedding_function=self._embedding_fn,
-                    metadata={"hnsw:space": "cosine"},
-                )
-                logger.debug(f"Chroma client initialized at {self.persist_dir}")
-            except ImportError:
-                logger.warning(
-                    "chromadb not installed. Vector search disabled. "
-                    "Install with: pip install chromadb sentence-transformers"
-                )
-                return None
-            except Exception as e:
-                logger.error(f"Failed to initialize Chroma: {e}")
-                return None
-        return self._client
-
-    def add(
-        self,
-        observation_id: int,
-        session_id: str,
-        content: str,
-        metadata: dict[str, Any] | None = None,
-    ) -> str | None:
-        """Add an observation embedding to the vector store.
-
-        Returns:
-            embedding_id or None if disabled/failed.
-        """
-        client = self._get_client()
-        if client is None or self._collection is None:
-            return None
-
-        embedding_id = f"obs_{observation_id}_{session_id}"
-        meta = {
-            "session_id": session_id,
-            "observation_id": observation_id,
-        }
-        if metadata:
-            meta.update(metadata)
-
-        try:
-            self._collection.add(
-                ids=[embedding_id],
-                documents=[content],
-                metadatas=[meta],
-            )
-            logger.debug(f"Vector added: {embedding_id}")
-            return embedding_id
-        except Exception as e:
-            logger.error(f"Failed to add vector: {e}")
-            return None
-
-    def add_structured_fields(
-        self,
-        structured_id: int,
-        session_id: str,
-        title: str,
-        narrative: str | None,
-        facts: list[str],
-        metadata: dict[str, Any] | None = None,
-    ) -> list[str]:
-        """Add field-level embeddings for structured observation.
-
-        Creates separate embeddings for title, narrative, and each fact
-        for fine-grained semantic search.
-
-        Returns:
-            List of embedding_ids that were added.
-        """
-        client = self._get_client()
-        if client is None or self._collection is None:
-            return []
-
-        added_ids: list[str] = []
-        base_meta = {
-            "session_id": session_id,
-            "structured_id": structured_id,
-            "source": "structured",
-        }
-        if metadata:
-            base_meta.update(metadata)
-
-        # Title embedding
-        if title:
-            try:
-                tid = f"so_{structured_id}_title"
-                self._collection.add(
-                    ids=[tid],
-                    documents=[title],
-                    metadatas=[{**base_meta, "field": "title"}],
-                )
-                added_ids.append(tid)
-            except Exception as e:
-                logger.error(f"Failed to add title vector: {e}")
-
-        # Narrative embedding
-        if narrative:
-            try:
-                nid = f"so_{structured_id}_narrative"
-                self._collection.add(
-                    ids=[nid],
-                    documents=[narrative],
-                    metadatas=[{**base_meta, "field": "narrative"}],
-                )
-                added_ids.append(nid)
-            except Exception as e:
-                logger.error(f"Failed to add narrative vector: {e}")
-
-        # Fact embeddings
-        for i, fact in enumerate(facts):
-            if not fact:
-                continue
-            try:
-                fid = f"so_{structured_id}_fact_{i}"
-                self._collection.add(
-                    ids=[fid],
-                    documents=[fact],
-                    metadatas=[{**base_meta, "field": "fact", "fact_index": i}],
-                )
-                added_ids.append(fid)
-            except Exception as e:
-                logger.error(f"Failed to add fact vector: {e}")
-
-        if added_ids:
-            logger.debug(
-                f"Structured vectors added: {len(added_ids)} fields for so_{structured_id}"
-            )
-        return added_ids
-
-    def search(
-        self,
-        query: str,
-        limit: int = 10,
-        filter_dict: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Semantic search over observations.
-
-        Returns:
-            List of results with id, distance, document, metadata.
-        """
-        client = self._get_client()
-        if client is None or self._collection is None:
-            return []
-
-        try:
-            results = self._collection.query(
-                query_texts=[query],
-                n_results=min(limit, 100),
-                where=filter_dict,
-                include=["metadatas", "documents", "distances"],
-            )
-
-            output = []
-            if results["ids"] and results["ids"][0]:
-                for i, embedding_id in enumerate(results["ids"][0]):
-                    output.append(
-                        {
-                            "embedding_id": embedding_id,
-                            "observation_id": results["metadatas"][0][i].get("observation_id"),
-                            "structured_id": results["metadatas"][0][i].get("structured_id"),
-                            "session_id": results["metadatas"][0][i].get("session_id"),
-                            "field": results["metadatas"][0][i].get("field"),
-                            "distance": results["distances"][0][i],
-                            "snippet": (
-                                results["documents"][0][i][:200] + "..."
-                                if len(results["documents"][0][i]) > 200
-                                else results["documents"][0][i]
-                            ),
-                        }
-                    )
-            return output
-
-        except Exception as e:
-            logger.error(f"Vector search failed: {e}")
-            return []
-
-    def delete_by_session(self, session_id: str) -> bool:
-        """Delete all vectors for a session."""
-        client = self._get_client()
-        if client is None or self._collection is None:
-            return False
-
-        try:
-            self._collection.delete(where={"session_id": session_id})
-            logger.debug(f"Vectors deleted for session: {session_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to delete vectors: {e}")
-            return False
-
-    def get_stats(self) -> dict[str, Any]:
-        """Get vector store statistics."""
-        client = self._get_client()
-        if client is None or self._collection is None:
-            return {"enabled": False, "count": 0}
-
-        try:
-            count = self._collection.count()
-            return {"enabled": True, "count": count}
-        except Exception as e:
-            logger.error(f"Failed to get vector stats: {e}")
-            return {"enabled": True, "count": 0, "error": str(e)}
-
-
-# ---------------------------------------------------------------------------
-# sqlite-vec (lightweight alternative, works everywhere)
+# sqlite-vec (primary vector store, works everywhere)
 # ---------------------------------------------------------------------------
 
 
@@ -348,6 +87,7 @@ class SQLiteVecStore:
         "narrative": "vec_narrative",
         "facts": "vec_facts",
     }
+    _RAW_VEC_TABLE = "vec_raw_observations"
 
     # Process-level singleton connection to ensure vec0 data persists
     _singleton_conn: sqlite3.Connection | None = None
@@ -488,6 +228,16 @@ class SQLiteVecStore:
                     partition_key TEXT
                 )
             """,
+            "vec_raw_observations": """
+                CREATE VIRTUAL TABLE IF NOT EXISTS vec_raw_observations USING vec0(
+                    embedding float[384],
+                    +observation_id INTEGER,
+                    +session_id TEXT,
+                    +event_type TEXT,
+                    +tool_name TEXT,
+                    partition_key TEXT
+                )
+            """,
         }
         for _name, sql in tables.items():
             try:
@@ -578,6 +328,117 @@ class SQLiteVecStore:
             conn.commit()
             logger.debug(f"sqlite-vec: added {count} embeddings for so_{structured_id}")
         return count
+
+    def add_raw_observation(
+        self,
+        observation_id: int,
+        session_id: str,
+        content: str,
+        event_type: str = "",
+        tool_name: str = "",
+        project: str = "",
+    ) -> bool:
+        """Add a raw observation embedding to sqlite-vec.
+
+        Adds a raw observation embedding for semantic search.
+
+        Returns:
+            True if added successfully.
+        """
+        if not self._vec_available or not content:
+            return False
+
+        conn = self._get_conn()
+        try:
+            emb = self._encode([content])[0]
+            conn.execute(
+                """
+                INSERT INTO vec_raw_observations(embedding, observation_id, session_id, event_type, tool_name, partition_key)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (emb, observation_id, session_id, event_type, tool_name or "", project or ""),
+            )
+            conn.commit()
+            logger.debug(f"sqlite-vec: added raw observation {observation_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add raw observation vec: {e}")
+            return False
+
+    def search_raw(
+        self,
+        query: str,
+        project: str | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Semantic search over raw observations.
+
+        Semantic search over raw observations.
+
+        Returns:
+            List of results with observation_id, session_id, event_type, tool_name, distance.
+        """
+        if not self._vec_available:
+            return []
+
+        conn = self._get_conn()
+        query_emb = self._encode([query])[0]
+
+        try:
+            if project:
+                sql = """
+                    SELECT observation_id, session_id, event_type, tool_name, distance
+                    FROM vec_raw_observations
+                    WHERE embedding MATCH ? AND k = ? AND partition_key = ?
+                """
+                params = (query_emb, limit, project)
+            else:
+                sql = """
+                    SELECT observation_id, session_id, event_type, tool_name, distance
+                    FROM vec_raw_observations
+                    WHERE embedding MATCH ? AND k = ?
+                """
+                params = (query_emb, limit)
+
+            rows = conn.execute(sql, params).fetchall()
+            results = []
+            for row in rows:
+                results.append(
+                    {
+                        "observation_id": row["observation_id"],
+                        "session_id": row["session_id"],
+                        "event_type": row["event_type"],
+                        "tool_name": row["tool_name"],
+                        "distance": row["distance"],
+                    }
+                )
+            return results
+        except Exception as e:
+            logger.error(f"sqlite-vec raw search failed: {e}")
+            return []
+
+    def delete_raw_by_session(self, session_id: str) -> int:
+        """Delete all raw observation vectors for a session.
+
+        Returns:
+            Number of embeddings deleted.
+        """
+        if not self._vec_available:
+            return 0
+
+        conn = self._get_conn()
+        try:
+            cursor = conn.execute(
+                "DELETE FROM vec_raw_observations WHERE session_id = ?",
+                (session_id,),
+            )
+            count = cursor.rowcount
+            if count:
+                conn.commit()
+            return count
+        except Exception as e:
+            logger.error(f"Failed to delete raw vectors: {e}")
+            return 0
 
     def sync_batch(
         self,

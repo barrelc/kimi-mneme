@@ -47,7 +47,7 @@ kimi-mneme/
 │   │   ├── schema.py               # 18 migrations
 │   │   ├── store.py                # Raw observations
 │   │   ├── structured_store.py     # Structured observations + FTS5
-│   │   ├── vector.py               # sqlite-vec + ChromaDB
+│   │   ├── vector.py               # sqlite-vec
 │   │   ├── collections_store.py    # Knowledge Collections
 │   │   └── wire_store.py           # Wire events
 │   ├── server/         # Web UI + API
@@ -61,7 +61,7 @@ kimi-mneme/
 │   ├── cli.py          # CLI commands
 │   └── config.py       # Configuration
 ├── server/             # Legacy server entry (re-exports)
-├── tests/              # Test suite (111 tests)
+├── tests/              # Test suite (98+ tests)
 │   ├── test_codebase_analyzer.py   # 15 tests
 │   ├── test_collections.py         # 9 tests
 │   ├── test_sanitize.py            # Privacy v2
@@ -81,7 +81,7 @@ kimi-mneme/
 ## Running Tests
 
 ```bash
-# All tests (111 tests)
+# All tests (98+ tests)
 pytest
 
 # Quick check
@@ -224,7 +224,7 @@ python -m mneme.db.migrate downgrade
 1. Update version in `pyproject.toml`
 2. Update `docs/IMPLEMENTATION_PLAN.md` with new metrics
 3. Update all docs (README, ARCHITECTURE, TOOLS, WEB_UI, DEVELOPMENT)
-4. Run tests: `pytest` (111 tests must pass)
+4. Run tests: `pytest` (all tests must pass)
 5. Build: `python -m build`
 6. Tag: `git tag v2.1.0`
 7. Push: `git push origin v2.1.0`

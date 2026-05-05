@@ -94,7 +94,7 @@ class StructuredObservationStore:
 
         if obs_id:
             logger.debug(f"Structured observation added: {obs_id} ({obs.type})")
-            # Add field-level vector embeddings (sqlite-vec first, Chroma fallback)
+            # Add field-level vector embeddings (sqlite-vec)
             try:
                 from mneme.db.vector import SQLiteVecStore
 

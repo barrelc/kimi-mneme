@@ -138,7 +138,18 @@ class Extractor:
                     )
                     return
 
-                compressor = Compressor()
+                # Build compressor from config
+                comp_cfg = config.get("compression", {})
+                llm_cfg = config.get("llm", {})
+                provider = comp_cfg.get("provider") or llm_cfg.get("provider", "kimi")
+                model = comp_cfg.get("model") or llm_cfg.get("model")
+                compressor = Compressor(
+                    provider=provider,
+                    model=model,
+                    base_url=llm_cfg.get("base_url"),
+                    api_key=llm_cfg.get("api_key"),
+                    batch_size=comp_cfg.get("batch_size", 50),
+                )
                 # Run async compress synchronously in thread
                 import asyncio
 

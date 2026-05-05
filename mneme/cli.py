@@ -168,7 +168,6 @@ def reset(force: bool, keep_sessions: bool) -> None:
 
     config = load_config()
     db_path = Path(config["db"]["path"])
-    chroma_path = Path(config["vector"]["path"])
 
     if not db_path.exists():
         click.echo(" Database does not exist, nothing to reset")
@@ -177,9 +176,6 @@ def reset(force: bool, keep_sessions: bool) -> None:
     if not force:
         click.echo(" This will DELETE all data from the database!")
         click.echo(f"  DB: {db_path} ({db_path.stat().st_size / 1024 / 1024:.1f} MB)")
-        if chroma_path.exists():
-            chroma_size = sum(f.stat().st_size for f in chroma_path.rglob("*") if f.is_file())
-            click.echo(f"  Chroma: {chroma_path} ({chroma_size / 1024 / 1024:.1f} MB)")
         click.echo("\n Wire traces in ~/.kimi/sessions/ will be preserved.")
         click.echo(" They will be re-indexed when the server starts.\n")
 
@@ -243,7 +239,7 @@ def reset(force: bool, keep_sessions: bool) -> None:
         conn.close()
         click.echo("\n Kept session metadata, cleared all observations and wire data")
     else:
-        # Full reset — delete DB and Chroma
+        # Full reset — delete DB (sqlite-vec data is inside SQLite)
         try:
             db_path.unlink()
             wal = db_path.with_suffix(".db-wal")
@@ -255,13 +251,6 @@ def reset(force: bool, keep_sessions: bool) -> None:
         except Exception as e:
             click.echo(f"  Failed to delete DB: {e}")
             return
-
-        if chroma_path.exists():
-            try:
-                shutil.rmtree(chroma_path)
-                click.echo(f"  Deleted {chroma_path}")
-            except Exception as e:
-                click.echo(f"  Failed to delete Chroma: {e}")
 
         # Re-initialize empty database
         click.echo("\n Re-initializing database...")
@@ -312,10 +301,12 @@ def _create_default_config() -> bool:
 
     default_config = {
         "db": {"path": str(config_dir / "mneme.db")},
-        "vector": {"path": str(config_dir / "chroma")},
+        "llm": {
+            "provider": "kimi",
+            "model": "kimi-k2.5",
+        },
         "compression": {
             "enabled": True,
-            "api_key": "${MOONSHOT_API_KEY}",
         },
         "server": {"port": 37777},
     }

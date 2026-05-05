@@ -1,15 +1,13 @@
-"""AI provider for observation structuring using Kimi API (reuses OAuth token)."""
+"""AI provider for observation structuring using configurable LLM backends."""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
-import httpx
 from loguru import logger
 
 from mneme.core.heuristic_structuring import HeuristicStructuring
+from mneme.core.llm_client import LLMMessage, create_llm_client
 from mneme.core.prompts.json_parser import ParsedObservation, parse_observation_json
 from mneme.core.prompts.observation_prompt import (
     OBSERVATION_SYSTEM_PROMPT,
@@ -27,31 +25,33 @@ class AIProvider:
         raise NotImplementedError
 
 
-def _load_kimi_token() -> str | None:
-    """Load OAuth access token from kimi-cli credentials."""
-    creds_path = Path.home() / ".kimi" / "credentials" / "kimi-code.json"
-    if not creds_path.exists():
-        return None
-    try:
-        data = json.loads(creds_path.read_text())
-        return data.get("access_token")
-    except Exception:
-        return None
+class ConfigurableAIProvider(AIProvider):
+    """AI provider that uses any LLM client from config."""
 
-
-class KimiProvider(AIProvider):
-    """Kimi API provider for structuring — reuses OAuth token from kimi-cli."""
-
-    def __init__(self) -> None:
-        self.token = _load_kimi_token()
-        self.model = "kimi-k2.5"
-        self.enabled = bool(self.token)
-        self.timeout = 30.0
+    def __init__(
+        self,
+        provider: str = "kimi",
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        timeout: float = 30.0,
+        enabled: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        self.client = create_llm_client(
+            provider=provider,
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+            timeout=timeout,
+            **kwargs,
+        )
+        self.enabled = enabled and (self.client is not None) and self.client.enabled
 
     async def structure_observation(
         self, tool_name: str, tool_input: Any, tool_output: str | None, error: str | None
     ) -> ParsedObservation | None:
-        if not self.enabled:
+        if not self.enabled or self.client is None:
             return None
 
         prompt = OBSERVATION_USER_PROMPT.format(
@@ -63,39 +63,33 @@ class KimiProvider(AIProvider):
         )
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    "https://api.kimi.com/coding/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.token}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {"role": "system", "content": OBSERVATION_SYSTEM_PROMPT},
-                            {"role": "user", "content": prompt},
-                        ],
-                        "temperature": 0.3,
-                        "max_tokens": 800,
-                    },
-                )
-                response.raise_for_status()
-                data = response.json()
-                content = data["choices"][0]["message"]["content"]
+            response = await self.client.chat(
+                messages=[
+                    LLMMessage(role="system", content=OBSERVATION_SYSTEM_PROMPT),
+                    LLMMessage(role="user", content=prompt),
+                ],
+                temperature=0.3,
+                max_tokens=800,
+            )
+            if response is None:
+                return None
 
-                return parse_observation_json(content)
+            return parse_observation_json(response.content)
 
         except Exception as e:
-            logger.warning(f"Kimi structuring failed: {e}")
+            logger.warning(f"AI structuring failed: {e}")
             return None
+
+
+# Backward-compatible alias
+KimiProvider = ConfigurableAIProvider
 
 
 class HybridProvider(AIProvider):
     """Try AI first, fallback to heuristic."""
 
-    def __init__(self) -> None:
-        self.ai = KimiProvider()
+    def __init__(self, ai_provider: AIProvider | None = None) -> None:
+        self.ai = ai_provider or ConfigurableAIProvider()
         self.heuristic = HeuristicStructuring()
 
     async def structure_observation(
