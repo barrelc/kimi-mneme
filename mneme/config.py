@@ -38,7 +38,7 @@ DEFAULT_CONFIG = {
         "enabled": True,
         # Override llm.provider if you want different LLM for compression
         "provider": None,  # null = use llm.provider
-        "model": None,     # null = use llm.model
+        "model": None,  # null = use llm.model
         "batch_size": 10,
         "min_observations": 5,
         "trigger": "session_end",
@@ -47,7 +47,7 @@ DEFAULT_CONFIG = {
         "enabled": True,
         # Override llm.provider if you want different LLM for structuring
         "provider": None,  # null = use llm.provider
-        "model": None,     # null = use llm.model
+        "model": None,  # null = use llm.model
         "fallback_to_heuristic": True,
         "heuristic_threshold_chars": 300,
         "batch_size": 5,
