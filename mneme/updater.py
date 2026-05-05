@@ -81,6 +81,7 @@ def is_update_available() -> tuple[bool, str | None]:
 
 def _version_greater(v1: str, v2: str) -> bool:
     """Compare two version strings."""
+
     def _normalize(v: str) -> list:
         parts = []
         for part in v.split("."):
