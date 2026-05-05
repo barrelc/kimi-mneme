@@ -85,10 +85,15 @@ kimi-mneme is designed to work **fully offline** with graceful degradation when 
 
 - **sqlite3 CLI**: Required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.)
 
-### Install via `uv tool` (recommended — permanent install)
+### Install via `uv tool` (recommended — global install)
+
+Installs `mneme` globally (available in any directory, like `git` or `docker`):
 
 ```bash
-# Install as a permanent tool
+# Install globally as a permanent tool
+uv tool install kimi-mneme
+
+# Or install latest from GitHub
 uv tool install git+https://github.com/barrelc/kimi-mneme.git
 
 # Run bootstrap (sets up hooks, plugin, DB, server)
@@ -99,10 +104,10 @@ kimi
 ```
 
 **Why `uv tool` instead of `uvx`?**
+- **Global commands** — `mneme` available everywhere, not just in project folder
 - No cache issues — installed permanently, not temporary
 - Faster startup — no re-installation on each run
 - Easy updates — `uv tool upgrade kimi-mneme`
-- Commands always available: `mneme stats`, `mneme server`, etc.
 
 ### Update
 
@@ -116,6 +121,8 @@ mneme bootstrap
 
 ### Alternative: Install via `uvx` (temporary, no install)
 
+Runs without installing — useful for testing or CI:
+
 ```bash
 # One-shot run (slower, re-installs each time)
 uvx --refresh --from git+https://github.com/barrelc/kimi-mneme.git mneme bootstrap
@@ -123,12 +130,33 @@ uvx --refresh --from git+https://github.com/barrelc/kimi-mneme.git mneme bootstr
 
 > ⚠️ `uvx` caches installations. Use `--refresh` to force update, or switch to `uv tool install` for a better experience.
 
-### Install via pip
+### Local / Development Install
+
+For contributing or hacking on the code:
 
 ```bash
+# Clone and install in editable mode
+git clone https://github.com/barrelc/kimi-mneme.git
+cd kimi-mneme
+uv pip install -e ".[dev]"
+
+# Or with pip
+pip install -e ".[dev]"
+```
+
+### Install via pip (global)
+
+```bash
+# Install globally
 pip install kimi-mneme
+
+# Or install in user space (no sudo needed)
+pip install --user kimi-mneme
+
 mneme bootstrap
 ```
+
+> **Note:** `pip install --user` installs to `~/.local/bin` (Linux/macOS) or `%APPDATA%\Python\Scripts` (Windows). Make sure this directory is in your `PATH`.
 
 ### What `bootstrap` does
 
