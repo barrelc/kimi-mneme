@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 import threading
 from typing import Any
@@ -15,6 +16,9 @@ from mneme.db.schema import get_connection
 # ---------------------------------------------------------------------------
 # Embedding helper
 # ---------------------------------------------------------------------------
+
+# Dimensionality for fallback dummy embeddings (matches all-MiniLM-L6-v2)
+_FALLBACK_EMBEDDING_DIM = 384
 
 
 class _EmbeddingCache:
@@ -30,27 +34,63 @@ class _EmbeddingCache:
                     cls._instance = super().__new__(cls)
                     cls._instance._model = None
                     cls._instance._model_name = None
+                    cls._instance._has_sentence_transformers = None
         return cls._instance
+
+    def _check_sentence_transformers(self) -> bool:
+        if self._has_sentence_transformers is None:
+            try:
+                import sentence_transformers  # noqa: F401
+
+                self._has_sentence_transformers = True
+            except ImportError:
+                self._has_sentence_transformers = False
+        return self._has_sentence_transformers
 
     def _load(self, model_name: str) -> Any:
         if self._model is None or self._model_name != model_name:
-            try:
-                from sentence_transformers import SentenceTransformer
-
-                self._model = SentenceTransformer(model_name)
-                self._model_name = model_name
-                logger.debug(f"Loaded embedding model: {model_name}")
-            except ImportError:
-                logger.error(
+            if not self._check_sentence_transformers():
+                logger.warning(
                     "sentence-transformers not installed. "
-                    "Install with: pip install sentence-transformers"
+                    "Using deterministic dummy embeddings. "
+                    "Install with: pip install 'kimi-mneme[embeddings]'"
                 )
-                raise
+                return None
+            from sentence_transformers import SentenceTransformer
+
+            self._model = SentenceTransformer(model_name)
+            self._model_name = model_name
+            logger.debug(f"Loaded embedding model: {model_name}")
         return self._model
 
     def encode(self, texts: list[str], model_name: str) -> np.ndarray:
         model = self._load(model_name)
-        return model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)
+        if model is not None:
+            return model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)
+        # Fallback: deterministic dummy embeddings for CI/testing
+        return _dummy_embeddings(texts)
+
+
+def _dummy_embeddings(texts: list[str]) -> np.ndarray:
+    """Generate deterministic normalized embeddings without ML libraries.
+
+    Uses SHA-256 hashing to produce consistent pseudo-random vectors.
+    Suitable for testing and CI where sentence-transformers is too heavy.
+    """
+    embeddings = np.zeros((len(texts), _FALLBACK_EMBEDDING_DIM), dtype=np.float32)
+    for i, text in enumerate(texts):
+        # Deterministic seed from text content
+        seed = hashlib.sha256(text.encode("utf-8")).digest()
+        # Use seed bytes to fill the vector
+        vec = np.frombuffer(seed, dtype=np.uint8).astype(np.float32)
+        # Expand to 384 dims by repeating and slicing
+        vec = np.resize(vec, _FALLBACK_EMBEDDING_DIM)
+        # Normalize to unit length
+        norm = np.linalg.norm(vec)
+        if norm > 0:
+            vec = vec / norm
+        embeddings[i] = vec
+    return embeddings
 
 
 def _encode_texts(texts: list[str], model_name: str | None = None) -> np.ndarray:

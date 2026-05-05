@@ -21,6 +21,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Sync dependencies
         run: uv sync --extra dev
@@ -66,4 +67,4 @@ jobs:
         run: uv build
 
       - name: Publish
-        run: uv publish --token ${{ secrets.PYPI }}
+        run: uv publish --token ${{ secrets.PYPI }} --skip-existing
