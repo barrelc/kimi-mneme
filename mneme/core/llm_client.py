@@ -152,6 +152,9 @@ class KimiClient(BaseLLMClient):
         except Exception:
             return None
 
+    # Backward-compatible alias for tests
+    _load_token = _load_oauth_token
+
     @property
     def enabled(self) -> bool:
         return bool(self.api_key)
