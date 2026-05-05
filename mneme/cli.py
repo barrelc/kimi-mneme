@@ -85,7 +85,14 @@ def server(port: int, host: str) -> None:
 @click.option("--date-to", help="End date (ISO)")
 @click.option("--project", "-p", help="Project filter")
 @click.option("--type", "obs_type", help="Observation type filter")
-def search_cmd(query: str, limit: int, date_from: str | None, date_to: str | None, project: str | None, obs_type: str | None) -> None:
+def search_cmd(
+    query: str,
+    limit: int,
+    date_from: str | None,
+    date_to: str | None,
+    project: str | None,
+    obs_type: str | None,
+) -> None:
     """Search memory index (plugin tool wrapper)."""
     from mneme.db.store import ObservationStore
     from mneme.db.structured_store import StructuredObservationStore
@@ -104,36 +111,49 @@ def search_cmd(query: str, limit: int, date_from: str | None, date_to: str | Non
     for r in obs_results:
         snippet = r.get("snippet") or ""
         if not snippet:
-            snippet = " | ".join(
-                s for s in [
-                    r.get("prompt"), r.get("tool_output"), r.get("error"),
-                    r.get("tool_input"), r.get("tool_name"), r.get("file_path"),
-                ] if s
-            ) or "(no preview)"
-        all_results.append({
-            "id": r["id"],
-            "session_id": r["session_id"],
-            "timestamp": r.get("created_at"),
-            "type": r["event_type"],
-            "tool_name": r.get("tool_name"),
-            "file_path": r.get("file_path"),
-            "snippet": snippet[:200],
-            "source": "observation",
-        })
+            snippet = (
+                " | ".join(
+                    s
+                    for s in [
+                        r.get("prompt"),
+                        r.get("tool_output"),
+                        r.get("error"),
+                        r.get("tool_input"),
+                        r.get("tool_name"),
+                        r.get("file_path"),
+                    ]
+                    if s
+                )
+                or "(no preview)"
+            )
+        all_results.append(
+            {
+                "id": r["id"],
+                "session_id": r["session_id"],
+                "timestamp": r.get("created_at"),
+                "type": r["event_type"],
+                "tool_name": r.get("tool_name"),
+                "file_path": r.get("file_path"),
+                "snippet": snippet[:200],
+                "source": "observation",
+            }
+        )
 
     # 2. Structured observations
     structured_results = structured_store.search_fts(query, limit=limit)
     for r in structured_results:
-        all_results.append({
-            "id": f"structured_{r['id']}",
-            "session_id": r["session_id"],
-            "timestamp": r.get("created_at"),
-            "type": r.get("type", "structured"),
-            "tool_name": None,
-            "file_path": None,
-            "snippet": f"{r.get('title', '')}: {r.get('narrative', '')}"[:200],
-            "source": "structured",
-        })
+        all_results.append(
+            {
+                "id": f"structured_{r['id']}",
+                "session_id": r["session_id"],
+                "timestamp": r.get("created_at"),
+                "type": r.get("type", "structured"),
+                "tool_name": None,
+                "file_path": None,
+                "snippet": f"{r.get('title', '')}: {r.get('narrative', '')}"[:200],
+                "source": "structured",
+            }
+        )
 
     # 3. Semantic search
     try:
@@ -143,17 +163,19 @@ def search_cmd(query: str, limit: int, date_from: str | None, date_to: str | Non
             existing_ids = {r["id"] for r in all_results}
             obs_id = obs.get("id")
             if obs_id and f"semantic_{obs_id}" not in existing_ids:
-                all_results.append({
-                    "id": f"semantic_{obs_id}",
-                    "session_id": obs.get("session_id", ""),
-                    "timestamp": obs.get("created_at"),
-                    "type": obs.get("type", "semantic"),
-                    "tool_name": sr.get("matched_field", ""),
-                    "file_path": None,
-                    "snippet": obs.get("title", ""),
-                    "source": "semantic",
-                    "distance": sr.get("distance"),
-                })
+                all_results.append(
+                    {
+                        "id": f"semantic_{obs_id}",
+                        "session_id": obs.get("session_id", ""),
+                        "timestamp": obs.get("created_at"),
+                        "type": obs.get("type", "semantic"),
+                        "tool_name": sr.get("matched_field", ""),
+                        "file_path": None,
+                        "snippet": obs.get("title", ""),
+                        "source": "semantic",
+                        "distance": sr.get("distance"),
+                    }
+                )
     except Exception:
         pass
 
@@ -178,21 +200,24 @@ def search_cmd(query: str, limit: int, date_from: str | None, date_to: str | Non
             except Exception:
                 text = wr.get("payload_json", "")[:200]
 
-            all_results.append({
-                "id": f"wire_{wr['id']}",
-                "session_id": wr["session_id"],
-                "created_at": wr.get("timestamp"),
-                "event_type": wr.get("event_type", "WireEvent"),
-                "tool_name": None,
-                "file_path": wr.get("session_cwd"),
-                "snippet": text,
-                "source": "wire",
-            })
+            all_results.append(
+                {
+                    "id": f"wire_{wr['id']}",
+                    "session_id": wr["session_id"],
+                    "created_at": wr.get("timestamp"),
+                    "event_type": wr.get("event_type", "WireEvent"),
+                    "tool_name": None,
+                    "file_path": wr.get("session_cwd"),
+                    "snippet": text,
+                    "source": "wire",
+                }
+            )
 
     # Filter by project
     if project:
         all_results = [
-            r for r in all_results
+            r
+            for r in all_results
             if project.lower() in r.get("session_id", "").lower()
             or project.lower() in r.get("file_path", "").lower()
         ]
@@ -239,7 +264,9 @@ def timeline_cmd(observation_id: int, radius: int) -> None:
             "type": obs["event_type"],
             "tool_name": obs.get("tool_name"),
             "file_path": obs.get("file_path"),
-            "snippet": (obs.get("tool_output") or obs.get("error") or obs.get("prompt") or "")[:200],
+            "snippet": (obs.get("tool_output") or obs.get("error") or obs.get("prompt") or "")[
+                :200
+            ],
         }
 
     output = {
@@ -262,19 +289,21 @@ def get_cmd(ids: str) -> None:
 
     full = []
     for obs in observations:
-        full.append({
-            "id": obs["id"],
-            "session_id": obs["session_id"],
-            "timestamp": obs["created_at"],
-            "type": obs["event_type"],
-            "tool_name": obs.get("tool_name"),
-            "tool_input": obs.get("tool_input"),
-            "tool_output": obs.get("tool_output"),
-            "error": obs.get("error"),
-            "file_path": obs.get("file_path"),
-            "prompt": obs.get("prompt"),
-            "agent_name": obs.get("agent_name"),
-        })
+        full.append(
+            {
+                "id": obs["id"],
+                "session_id": obs["session_id"],
+                "timestamp": obs["created_at"],
+                "type": obs["event_type"],
+                "tool_name": obs.get("tool_name"),
+                "tool_input": obs.get("tool_input"),
+                "tool_output": obs.get("tool_output"),
+                "error": obs.get("error"),
+                "file_path": obs.get("file_path"),
+                "prompt": obs.get("prompt"),
+                "agent_name": obs.get("agent_name"),
+            }
+        )
 
     click.echo(json.dumps({"observations": full, "count": len(full)}, ensure_ascii=False, indent=2))
 
@@ -561,7 +590,16 @@ def _register_hooks() -> bool:
 
     # Prefer uv tool python if available (has mneme installed), fallback to current
     python_exe = sys.executable
-    uv_tool_python = Path.home() / "AppData" / "Roaming" / "uv" / "tools" / "kimi-mneme" / "Scripts" / "python.exe"
+    uv_tool_python = (
+        Path.home()
+        / "AppData"
+        / "Roaming"
+        / "uv"
+        / "tools"
+        / "kimi-mneme"
+        / "Scripts"
+        / "python.exe"
+    )
     if uv_tool_python.exists():
         python_exe = str(uv_tool_python)
 

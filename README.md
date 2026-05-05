@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Kimi CLI](https://img.shields.io/badge/Kimi%20CLI-plugin-orange.svg)](https://moonshotai.github.io/kimi-cli/)
 
-**Version:** <!-- VERSION -->2.0.8<!-- /VERSION -->
+**Version:** <!-- VERSION -->2.0.9<!-- /VERSION -->
 
 > **Mneme** (Greek: Μνήμη) — the goddess of memory and the mother of the Muses.  
 > This project brings persistent, AI-compressed memory to [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/).
@@ -132,10 +132,16 @@ mneme bootstrap
 
 ### What `bootstrap` does
 
-- Registers hooks in `~/.kimi/config.toml`
-- Installs the Kimi CLI plugin
-- Creates the SQLite database at `~/.kimi/mneme/mneme.db`
-- Starts the web server on `http://localhost:37777`
+| Step | What happens |
+|------|-------------|
+| **Database** | Creates SQLite DB at `~/.kimi/mneme/mneme.db` |
+| **Hooks** | Registers 4 lifecycle hooks in `~/.kimi/config.toml` (auto-injects context on session start) |
+| **Plugin** | Installs `mneme_search`, `mneme_timeline`, `mneme_get` tools into Kimi CLI |
+| **MCP Server** | Registers `kimi-mneme` MCP server in `~/.kimi/mcp.json` (15+ tools for Claude/Cursor/Goose) |
+| **Skills** | Copies `mem-search` skill to `~/.kimi/skills/` (teaches AI the search→timeline→get workflow) |
+| **Server** | Starts web dashboard at `http://localhost:37777` |
+
+> **One command = fully configured.** No manual setup needed.
 
 > **Recommended:** Install `sqlite3` CLI for database inspection and internal operations:
 > ```bash
@@ -156,6 +162,18 @@ kimi
 ```
 
 That's it. Every session is automatically captured and indexed. When you start a new session in a project, previous context is automatically injected.
+
+### Out-of-Box Experience
+
+After `mneme bootstrap`, everything works automatically:
+
+1. **Auto-injected context** on every `kimi` start — shows "What we did before" with real prompts, files, and tools
+2. **Plugin tools** — Kimi AI can call `mneme_search`, `mneme_timeline`, `mneme_get` to query memory
+3. **MCP tools** — 15+ tools including `memory_search`, `memory_semantic_search`, `smart_search`, `smart_outline`
+4. **Skills** — Kimi learns the 3-layer workflow: search → timeline → get (10x token savings)
+5. **Web UI** — Browse full timeline at `http://localhost:37777`
+
+> 💡 **Ask Kimi:** *"What did we do yesterday?"* or *"Search my memory for the auth bug"* — it will use the memory tools automatically.
 
 ---
 

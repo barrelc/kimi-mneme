@@ -73,7 +73,9 @@ class Extractor:
 
         return None
 
-    def _get_raw_observations_summary(self, cwd: str, current_session_id: str | None = None) -> str | None:
+    def _get_raw_observations_summary(
+        self, cwd: str, current_session_id: str | None = None
+    ) -> str | None:
         """Get a quick summary from raw observations when structured data is sparse."""
         try:
             sessions = self.store.get_sessions_for_project(cwd, limit=3)
