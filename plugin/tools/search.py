@@ -48,40 +48,49 @@ def main() -> None:
             snippet = r.get("snippet") or ""
             # If snippet is empty (FTS returned null), build a fallback from available fields
             if not snippet:
-                snippet = " | ".join(
-                    s for s in [
-                        r.get("prompt"),
-                        r.get("tool_output"),
-                        r.get("error"),
-                        r.get("tool_input"),
-                        r.get("tool_name"),
-                        r.get("file_path"),
-                    ] if s
-                ) or "(no preview)"
-            all_results.append({
-                "id": r["id"],
-                "session_id": r["session_id"],
-                "timestamp": r.get("created_at"),
-                "type": r["event_type"],
-                "tool_name": r.get("tool_name"),
-                "file_path": r.get("file_path"),
-                "snippet": snippet[:200],
-                "source": "observation",
-            })
+                snippet = (
+                    " | ".join(
+                        s
+                        for s in [
+                            r.get("prompt"),
+                            r.get("tool_output"),
+                            r.get("error"),
+                            r.get("tool_input"),
+                            r.get("tool_name"),
+                            r.get("file_path"),
+                        ]
+                        if s
+                    )
+                    or "(no preview)"
+                )
+            all_results.append(
+                {
+                    "id": r["id"],
+                    "session_id": r["session_id"],
+                    "timestamp": r.get("created_at"),
+                    "type": r["event_type"],
+                    "tool_name": r.get("tool_name"),
+                    "file_path": r.get("file_path"),
+                    "snippet": snippet[:200],
+                    "source": "observation",
+                }
+            )
 
         # 2. Search structured observations (FTS)
         structured_results = structured_store.search_fts(query, limit=limit)
         for r in structured_results:
-            all_results.append({
-                "id": f"structured_{r['id']}",
-                "session_id": r["session_id"],
-                "timestamp": r.get("created_at"),
-                "type": r.get("type", "structured"),
-                "tool_name": None,
-                "file_path": None,
-                "snippet": f"{r.get('title', '')}: {r.get('narrative', '')}"[:200],
-                "source": "structured",
-            })
+            all_results.append(
+                {
+                    "id": f"structured_{r['id']}",
+                    "session_id": r["session_id"],
+                    "timestamp": r.get("created_at"),
+                    "type": r.get("type", "structured"),
+                    "tool_name": None,
+                    "file_path": None,
+                    "snippet": f"{r.get('title', '')}: {r.get('narrative', '')}"[:200],
+                    "source": "structured",
+                }
+            )
 
         # 3. Semantic search via sqlite-vec
         try:
@@ -94,17 +103,19 @@ def main() -> None:
                 existing_ids = {r["id"] for r in all_results}
                 obs_id = obs.get("id")
                 if obs_id and f"semantic_{obs_id}" not in existing_ids:
-                    all_results.append({
-                        "id": f"semantic_{obs_id}",
-                        "session_id": obs.get("session_id", ""),
-                        "timestamp": obs.get("created_at"),
-                        "type": obs.get("type", "semantic"),
-                        "tool_name": sr.get("matched_field", ""),
-                        "file_path": None,
-                        "snippet": obs.get("title", ""),
-                        "source": "semantic",
-                        "distance": sr.get("distance"),
-                    })
+                    all_results.append(
+                        {
+                            "id": f"semantic_{obs_id}",
+                            "session_id": obs.get("session_id", ""),
+                            "timestamp": obs.get("created_at"),
+                            "type": obs.get("type", "semantic"),
+                            "tool_name": sr.get("matched_field", ""),
+                            "file_path": None,
+                            "snippet": obs.get("title", ""),
+                            "source": "semantic",
+                            "distance": sr.get("distance"),
+                        }
+                    )
         except Exception:
             pass  # Semantic search is best-effort
 
@@ -113,6 +124,7 @@ def main() -> None:
         for wr in wire_results:
             if not any(r.get("session_id") == wr["session_id"] for r in all_results):
                 import json as json_mod
+
                 try:
                     payload = json_mod.loads(wr.get("payload_json", "{}"))
                     text = ""
@@ -130,16 +142,18 @@ def main() -> None:
                 except Exception:
                     text = wr.get("payload_json", "")[:200]
 
-                all_results.append({
-                    "id": f"wire_{wr['id']}",
-                    "session_id": wr["session_id"],
-                    "created_at": wr.get("timestamp"),
-                    "event_type": wr.get("event_type", "WireEvent"),
-                    "tool_name": None,
-                    "file_path": wr.get("session_cwd"),
-                    "snippet": text,
-                    "source": "wire",
-                })
+                all_results.append(
+                    {
+                        "id": f"wire_{wr['id']}",
+                        "session_id": wr["session_id"],
+                        "created_at": wr.get("timestamp"),
+                        "event_type": wr.get("event_type", "WireEvent"),
+                        "tool_name": None,
+                        "file_path": wr.get("session_cwd"),
+                        "snippet": text,
+                        "source": "wire",
+                    }
+                )
 
         # Filter by project if specified
         if project:
