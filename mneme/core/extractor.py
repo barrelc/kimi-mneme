@@ -44,7 +44,7 @@ class Extractor:
         # 2. Full context injection — semantic search via sqlite-vec (B.5)
         from mneme.core.injector import Injector
 
-        injector = Injector(store=self.store, use_vector=True)
+        injector = Injector(store=self.store)
         context = injector.get_context(cwd, current_session_id=session_id)
 
         # 3. Fallback: raw observations summary if no structured data

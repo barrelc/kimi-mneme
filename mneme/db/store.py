@@ -109,7 +109,7 @@ class ObservationStore:
     # Observations
     # -----------------------------------------------------------------------
 
-    def add_observation(self, observation: Observation, skip_vector: bool = False) -> int:
+    def add_observation(self, observation: Observation, skip_vector: bool = True) -> int:
         """Add an observation and return its ID."""
         content = self._observation_to_text(observation)
         content_hash = self._hash_content(content) if content else None
