@@ -48,6 +48,9 @@ def memory_semantic_search(
     Great for: "find similar code patterns", "what did I do about auth?",
     "show me discoveries about performance".
 
+    NOTE: First call loads the embedding model (~10s). Subsequent calls in the
+    same session are fast. If model loading fails, falls back to FTS search.
+
     Args:
         query: Natural language query.
         project: Optional project filter.
@@ -57,16 +60,49 @@ def memory_semantic_search(
     Returns:
         Dict with 'results' (full observations + distance + matched_field).
     """
+    import time
+
+    from loguru import logger
+
+    start = time.time()
     vec_store = SQLiteVecStore()
-    results = vec_store.search_with_content(query=query, project=project, limit=limit, days=days)
-    return {
-        "results": results,
-        "total": len(results),
-        "query": query,
-        "project": project,
-        "days": days,
-        "backend": "sqlite-vec",
-    }
+
+    try:
+        results = vec_store.search_with_content(query=query, project=project, limit=limit, days=days)
+        elapsed = round(time.time() - start, 2)
+        logger.debug(f"Semantic search done in {elapsed}s")
+        return {
+            "results": results,
+            "total": len(results),
+            "query": query,
+            "project": project,
+            "days": days,
+            "backend": "sqlite-vec",
+            "elapsed_seconds": elapsed,
+        }
+    except Exception as e:
+        logger.warning(f"Semantic search failed ({e}), falling back to FTS")
+        # Fallback to FTS search
+        store = StructuredObservationStore()
+        fts_results = store.search_fts(query, limit=limit)
+        fallback = []
+        for r in fts_results:
+            fallback.append(
+                {
+                    "observation": r,
+                    "distance": 0.0,
+                    "matched_field": "title",
+                }
+            )
+        return {
+            "results": fallback,
+            "total": len(fallback),
+            "query": query,
+            "project": project,
+            "days": days,
+            "backend": "fts-fallback",
+            "warning": f"Semantic search failed ({e}). Using FTS fallback.",
+        }
 
 
 @mcp.tool(annotations={"readOnlyHint": True})
