@@ -267,10 +267,11 @@ class StructuredObservationStore:
     def search_fts(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """Full-text search over structured observations."""
         words = [w for w in query.strip().split() if len(w) > 2]
+        # Sanitize query for FTS5: wrap in quotes to handle special chars like dots
         if words:
-            fts_query = f'"{query}" OR ' + " OR ".join(words) if len(words) > 1 else query
+            fts_query = f'"{query}" OR ' + " OR ".join(words) if len(words) > 1 else f'"{query}"'
         else:
-            fts_query = query
+            fts_query = f'"{query}"'
 
         with self._get_conn() as conn:
             try:

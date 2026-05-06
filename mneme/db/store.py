@@ -110,7 +110,7 @@ class ObservationStore:
     # Observations
     # -----------------------------------------------------------------------
 
-    def add_observation(self, observation: Observation, skip_vector: bool = True) -> int:
+    def add_observation(self, observation: Observation, skip_vector: bool = False) -> int:
         """Add an observation and return its ID."""
         content = self._observation_to_text(observation)
         content_hash = self._hash_content(content) if content else None
@@ -168,12 +168,25 @@ class ObservationStore:
         if obs_id and not skip_vector:
             # Add to sqlite-vec for semantic search
             if content:
+                # Get project from session
+                project = ""
+                try:
+                    with self._get_conn() as conn:
+                        row = conn.execute(
+                            "SELECT project FROM sessions WHERE id = ?",
+                            (observation.session_id,),
+                        ).fetchone()
+                        if row:
+                            project = row["project"] or ""
+                except Exception:
+                    pass
                 self.sqlite_vec.add_raw_observation(
                     observation_id=obs_id,
                     session_id=observation.session_id,
                     content=content,
                     event_type=observation.event_type,
                     tool_name=observation.tool_name or "",
+                    project=project,
                 )
             logger.debug(f"Observation added: {obs_id}")
         else:
@@ -222,12 +235,15 @@ class ObservationStore:
     ) -> list[dict[str, Any]]:
         """Hybrid search: FTS + fallback LIKE + vector similarity."""
         # Build FTS query with OR between words for better recall
+        # Sanitize query for FTS5: wrap in quotes to handle special chars like dots
+        # FTS5 treats unquoted dots as column filters (column_name.token), which fails
+        # Quoted strings are treated as literal phrases
         words = [w for w in query.strip().split() if len(w) > 2]
         if words:
-            # Try exact phrase first, then individual words with OR
-            fts_query = f'"{query}" OR ' + " OR ".join(words) if len(words) > 1 else query
+            # Try exact phrase first (quoted), then individual words with OR
+            fts_query = f'"{query}" OR ' + " OR ".join(words) if len(words) > 1 else f'"{query}"'
         else:
-            fts_query = query
+            fts_query = f'"{query}"'
 
         fts_results: list[dict[str, Any]] = []
 
@@ -341,7 +357,8 @@ class ObservationStore:
                         "tool_name": vr.get("tool_name"),
                         "file_path": None,
                         "created_at": None,
-                        "snippet": "",
+                        "snippet": f"[semantic match, distance={vr.get('distance', 0):.3f}]",
+                        "source": "semantic",
                         "vector_distance": vr.get("distance"),
                     }
                 )

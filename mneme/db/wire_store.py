@@ -352,7 +352,7 @@ class WireStore:
             prompt=prompt,
             created_at=created_at,
         )
-        obs_id = store.add_observation(obs, skip_vector=True)
+        obs_id = store.add_observation(obs, skip_vector=False)
 
         # Queue for background structuring
         if obs_id:
