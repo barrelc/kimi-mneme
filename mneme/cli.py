@@ -87,33 +87,23 @@ def server(port: int, host: str) -> None:
 
 
 def _get_plugin_credentials() -> tuple[str | None, str | None]:
-    """Get plugin credentials from env vars (injected by kimi-cli) or config.json.
+    """Get credentials from env vars injected by Kimi CLI at plugin tool runtime.
 
-    Priority:
-    1. Env vars llm.api_key / llm.endpoint (injected by kimi-cli at tool runtime)
-    2. config.json in plugin directory (written by kimi-cli at install time)
-    3. None (no credentials available)
+    Kimi CLI injects fresh OAuth tokens as env vars when executing plugin tools:
+      - llm.api_key  → fresh access token
+      - llm.endpoint → API base URL
+
+    This is DIFFERENT from the static config in ~/.kimi/plugins/kimi-mneme/config.json
+    which contains a stale token from installation time.
     """
     import os
 
-    # 1. Env vars (injected at runtime by kimi-cli)
-    token = os.getenv("llm.api_key") or os.getenv("api_key")  # noqa: SIM112
-    endpoint = os.getenv("llm.endpoint") or os.getenv("base_url")  # noqa: SIM112
+    # Env vars injected by Kimi CLI at plugin tool runtime
+    # noqa: SIM112 — Kimi CLI uses lowercase env var names
+    token = os.getenv("llm.api_key")  # noqa: SIM112
+    endpoint = os.getenv("llm.endpoint")  # noqa: SIM112
     if token:
         return token, endpoint
-
-    # 2. config.json in plugin directory (fallback)
-    try:
-        plugin_config = Path.home() / ".kimi" / "plugins" / "kimi-mneme" / "config.json"
-        if plugin_config.exists():
-            data = json.loads(plugin_config.read_text(encoding="utf-8"))
-            llm_cfg = data.get("llm", {})
-            token = llm_cfg.get("api_key")
-            endpoint = llm_cfg.get("endpoint")
-            if token:
-                return token, endpoint
-    except Exception:
-        pass
 
     return None, None
 
@@ -121,12 +111,13 @@ def _get_plugin_credentials() -> tuple[str | None, str | None]:
 def _maybe_structure_pending() -> None:
     """Lazy structuring: process pending messages when plugin tool is called.
 
-    This runs only when a plugin token is available (injected by kimi-cli).
-    Background worker doesn't have the token, so we do lazy structuring here.
+    This ONLY works when called from a Kimi CLI plugin tool execution context,
+    because Kimi CLI injects fresh llm.api_key as an env var at runtime.
+    Background worker and manual CLI commands do NOT have this token.
     """
     plugin_token, base_url = _get_plugin_credentials()
     if not plugin_token:
-        return  # No token — skip (background worker or no auth)
+        return  # Not in plugin tool context — skip
 
     try:
         from mneme.core.ai_provider import ConfigurableAIProvider, HybridProvider
@@ -136,14 +127,12 @@ def _maybe_structure_pending() -> None:
         store = ObservationStore()
         structured_store = StructuredObservationStore()
 
-        # Check if there are pending messages
         pending = store.claim_pending_messages(limit=10, message_type="observation")
         if not pending:
             return
 
         # Determine endpoint if not provided
         if not base_url:
-            # Heuristic: long token = OAuth (kimi-code endpoint), short = API key (moonshot)
             base_url = (
                 "https://api.kimi.com/coding/v1/chat/completions"
                 if len(plugin_token) > 500
@@ -194,7 +183,6 @@ def _maybe_structure_pending() -> None:
         asyncio.run(_process())
 
     except Exception:
-        # Silent fail — don't block search if structuring fails
         pass
 
 
@@ -509,6 +497,7 @@ def cleanup(days: int) -> None:
 def stats() -> None:
     """Show database statistics."""
     from mneme.db.store import ObservationStore
+    from mneme.db.structured_store import StructuredObservationStore
 
     store = ObservationStore()
     data = store.get_stats()
@@ -524,6 +513,104 @@ def stats() -> None:
         click.echo("\nTop Projects:")
         for p in data["top_projects"]:
             click.echo(f"  {p['project']}: {p['count']} sessions")
+
+    # Structured observations stats
+    try:
+        structured_store = StructuredObservationStore()
+        so_stats = structured_store.get_stats()
+        click.echo(f"\nStructured:    {so_stats['total']}")
+        if so_stats.get("by_source"):
+            click.echo("  By source:")
+            for s in so_stats["by_source"]:
+                click.echo(f"    {s['source']}: {s['count']}")
+        if so_stats.get("by_type"):
+            click.echo("  By type:")
+            for t in so_stats["by_type"][:5]:
+                click.echo(f"    {t['type']}: {t['count']}")
+    except Exception:
+        pass
+
+
+@main.command("structure")
+@click.option("--limit", "-l", default=10, help="Max observations to process")
+@click.option("--dry-run", is_flag=True, help="Show what would be processed without structuring")
+def structure_cmd(limit: int, dry_run: bool) -> None:
+    """Run AI structuring on pending observations manually.
+
+    Requires LLM API key configured in ~/.kimi/mneme/config.json:
+      { "llm": { "api_key": "your-key", "provider": "kimi" } }
+
+    Heuristic structuring works automatically. This command is for AI-enhanced
+    structuring when you have configured an API key.
+    """
+    import asyncio
+
+    from mneme.config import load_config
+    from mneme.core.worker import StructuringWorker
+
+    config = load_config()
+    llm_cfg = config.get("llm", {})
+    api_key = llm_cfg.get("api_key")
+
+    if not api_key:
+        click.echo("❌ No API key configured.")
+        click.echo("\nAdd to ~/.kimi/mneme/config.json:")
+        click.echo('  { "llm": { "api_key": "your-key", "provider": "kimi" } }')
+        click.echo("\nOr set env var: MNEME_LLM_API_KEY=your-key")
+        click.echo("\nHeuristic structuring works without API key.")
+        return
+
+    worker = StructuringWorker()
+
+    # Check if AI provider is actually enabled
+    if not worker.provider.ai.enabled:
+        click.echo("❌ AI provider is disabled or misconfigured.")
+        click.echo(f"   Provider: {llm_cfg.get('provider', 'kimi')}")
+        click.echo(f"   Model: {llm_cfg.get('model', 'default')}")
+        return
+
+    # Show pending count
+    pending = worker.store.claim_pending_messages(limit=1, message_type="observation")
+    # Return them since we only peeked
+    if pending:
+        for msg in pending:
+            worker.store._get_conn().execute(
+                "UPDATE pending_messages SET status = 'pending' WHERE id = ?",
+                (msg["id"],),
+            )
+
+    count_result = (
+        worker.store._get_conn()
+        .execute(
+            "SELECT COUNT(*) FROM pending_messages WHERE status = 'pending' AND message_type = 'observation'"
+        )
+        .fetchone()
+    )
+    pending_count = count_result[0] if count_result else 0
+
+    click.echo(f"📦 Pending observations: {pending_count}")
+
+    if dry_run:
+        click.echo("\n--dry-run: would process these observations with AI structuring")
+        return
+
+    if pending_count == 0:
+        click.echo("✅ Nothing to structure.")
+        return
+
+    click.echo(f"\n🚀 Starting AI structuring (limit={limit})...")
+    click.echo(f"   Provider: {llm_cfg.get('provider', 'kimi')}")
+    click.echo(f"   Model: {llm_cfg.get('model', 'default')}")
+    click.echo("")
+
+    async def _run() -> None:
+        await worker._process_batch(limit=limit)
+
+    try:
+        asyncio.run(_run())
+        click.echo("\n✅ Structuring complete!")
+    except Exception as e:
+        click.echo(f"\n❌ Structuring failed: {e}")
 
 
 @main.command()
