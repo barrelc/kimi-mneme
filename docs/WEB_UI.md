@@ -47,7 +47,7 @@ GET /api/health
 ```
 
 ```json
-{"status": "ok", "version": "2.0.22"}
+{"status": "ok", "version": "2.0.23"}
 ```
 
 ### Search

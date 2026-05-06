@@ -1,6 +1,6 @@
 {
   "name": "kimi-mneme",
-  "version": "2.0.22",
+  "version": "2.0.23",
   "description": "Persistent memory plugin for Kimi Code CLI \u2014 search and retrieve past session context. Part of the kimi-plugins ecosystem.",
   "config_file": "config.json",
   "inject": {
