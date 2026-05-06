@@ -251,44 +251,53 @@ flowchart TB
     subgraph kimi_cli["🖥️ Kimi Code CLI"]
         hooks["🔌 Hooks<br/>7 lifecycle events"]
         plugin["🔧 Plugin Tools<br/>3 AI-callable tools"]
-        prompts["💬 User Prompts"]
+        mcp_client["🔌 MCP Clients<br/>Claude • Cursor • Goose"]
     end
 
-    subgraph core["⚙️ kimi-mneme Core"]
-        extractor["📥 Extractor<br/>context • checkpoints • patterns"]
-        compressor["🤖 Compressor<br/>AI semantic summaries"]
-        injector["📤 Injector<br/>session start • patterns"]
+    subgraph ingestion["📥 Ingestion Layer"]
+        wire["📡 Wire Watcher<br/>watchdog indexes wire.jsonl"]
+        extractor["📥 Extractor<br/>sanitize • queue • checkpoints"]
+    end
+
+    subgraph processing["⚙️ Processing Layer"]
+        worker["🤖 StructuringWorker<br/>AI / heuristic structuring"]
+        compressor["🗜️ Compressor<br/>session summaries"]
+        injector["📤 Injector<br/>semantic context injection"]
+        analyzer["🌳 Codebase Analyzer<br/>Tree-sitter AST"]
     end
 
     subgraph storage["💾 Storage Layer"]
-        sqlite[("SQLite<br/>sessions • observations<br/>checkpoints • patterns")]
-        vec["🔍 sqlite-vec<br/>semantic search"]
-        server["🌐 Web Server<br/>localhost:37777"]
+        sqlite[("SQLite<br/>raw • structured • vectors<br/>collections • wire")]
+        vec["🔍 sqlite-vec<br/>384-dim embeddings"]
+    end
+
+    subgraph interfaces["🌐 Interfaces"]
+        server["Web Server<br/>localhost:37777 • SSE"]
+        mcp_server["MCP Server<br/>15 tools"]
+        project_md[".kimi/PROJECT.md<br/>.kimi/AGENTS.md"]
     end
 
     hooks --> extractor
-    plugin --> extractor
-    extractor --> compressor
-    compressor --> injector
-    injector --> prompts
+    wire --> extractor
     extractor --> sqlite
-    compressor --> sqlite
-    injector --> sqlite
+    extractor -->|pending queue| worker
+    worker -->|structured obs| sqlite
     sqlite --> vec
+    sqlite --> compressor
+    sqlite --> injector
+    sqlite --> analyzer
     sqlite --> server
+    sqlite --> mcp_server
+    sqlite --> project_md
+    plugin --> mcp_server
+    mcp_client --> mcp_server
+    injector -->|context| kimi_cli
 
     style kimi_cli fill:#1a1a2e,stroke:#16213e,stroke-width:2px,color:#fff
-    style core fill:#16213e,stroke:#0f3460,stroke-width:2px,color:#fff
-    style storage fill:#0f3460,stroke:#e94560,stroke-width:2px,color:#fff
-    style hooks fill:#533483,color:#fff
-    style plugin fill:#533483,color:#fff
-    style prompts fill:#533483,color:#fff
-    style extractor fill:#e94560,color:#fff
-    style compressor fill:#e94560,color:#fff
-    style injector fill:#e94560,color:#fff
-    style sqlite fill:#1a1a2e,color:#fff
-    style vec fill:#1a1a2e,color:#fff
-    style server fill:#1a1a2e,color:#fff
+    style ingestion fill:#16213e,stroke:#0f3460,stroke-width:2px,color:#fff
+    style processing fill:#0f3460,stroke:#e94560,stroke-width:2px,color:#fff
+    style storage fill:#1a1a2e,stroke:#533483,stroke-width:2px,color:#fff
+    style interfaces fill:#16213e,stroke:#0f3460,stroke-width:2px,color:#fff
 ```
 
 ### Components
@@ -297,12 +306,16 @@ flowchart TB
 |-----------|---------|
 | **Hooks** | 7 lifecycle event handlers (SessionStart, PostToolUse, SessionEnd, PreCompact, PostCompact, etc.) |
 | **Plugin** | 3 AI-callable tools: `mneme_search`, `mneme_timeline`, `mneme_get` |
-| **Extractor** | Parses observations, detects truncation, creates checkpoints, detects patterns |
-| **Compressor** | Generates semantic summaries via configurable LLM (Kimi API, Ollama, OpenAI-compatible) |
-| **Injector** | Injects checkpoints, patterns, and relevant past context at session start |
-| **SQLite** | Stores sessions, observations, summaries, checkpoints, patterns, compaction events |
-| **sqlite-vec** | SQLite extension for semantic similarity search (primary, cross-platform) |
-| **Web Server** | FastAPI-based API on port 37777 — real-time SSE event stream |
+| **Wire Watcher** | watchdog-based indexing of Kimi CLI `wire.jsonl` + `state.json` |
+| **Extractor** | Sanitizes observations, adds to pending queue, creates checkpoints, detects patterns |
+| **StructuringWorker** | Background worker: AI structuring (Kimi/Ollama/OpenAI) → heuristic fallback |
+| **Compressor** | Generates session summaries via configurable LLM |
+| **Injector** | Injects structured context + semantic search results at session start |
+| **Codebase Analyzer** | Tree-sitter AST analysis (Python, JS, TS, Rust, Go) — scan, search, outline |
+| **SQLite** | Raw observations, structured observations, vectors, collections, wire events |
+| **sqlite-vec** | 384-dim embeddings for semantic similarity search (primary, cross-platform) |
+| **Web Server** | FastAPI + vanilla JS on port 37777 — SSE stream, structured cards, search |
+| **MCP Server** | 15 tools for Claude Desktop, Cursor, Goose — search, timeline, collections, codebase |
 
 ---
 
