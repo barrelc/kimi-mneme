@@ -311,7 +311,7 @@ The tools are declared in `plugin/plugin.json`:
 ```json
 {
   "name": "kimi-mneme",
-  "version": "1.1.0",
+  "version": "2.0.15",
   "tools": [
     {
       "name": "mneme_search",

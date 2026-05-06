@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Kimi CLI](https://img.shields.io/badge/Kimi%20CLI-plugin-orange.svg)](https://moonshotai.github.io/kimi-cli/)
 
-**Version:** <!-- VERSION -->2.0.13<!-- /VERSION -->
+**Version:** <!-- VERSION -->2.0.15<!-- /VERSION -->
 
 > **Mneme** (Greek: Μνήμη) — the goddess of memory and the mother of the Muses.  
 > This project brings persistent, AI-compressed memory to [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/).
@@ -111,9 +111,21 @@ kimi
 
 ### Update
 
+#### Via `uv` (recommended)
+
 ```bash
 # Update to latest version
 uv tool upgrade kimi-mneme
+
+# Re-run bootstrap to update hooks and config
+mneme bootstrap
+```
+
+#### Via `pip`
+
+```bash
+# Update to latest version
+pip install --upgrade kimi-mneme
 
 # Re-run bootstrap to update hooks and config
 mneme bootstrap
