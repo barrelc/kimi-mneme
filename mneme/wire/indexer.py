@@ -48,6 +48,7 @@ class WireIndexer:
                 # Also store prompt as observation for backward compat
                 prompt_text = _extract_prompt_text(evt)
                 if prompt_text:
+                    cwd = self.store.get_session_cwd(sid)
                     self.store.add_observation_from_wire(
                         session_id=sid,
                         event_type="UserPromptSubmit",
@@ -55,6 +56,7 @@ class WireIndexer:
                         turn_number=self._turns.get(sid),
                         step_number=0,
                         timestamp=evt.timestamp,
+                        cwd=cwd,
                     )
             case _ if hasattr(evt, "step_number") and evt.step_number:
                 self._steps[sid] = max(self._steps.get(sid, 0), evt.step_number)
@@ -98,6 +100,7 @@ class WireIndexer:
                 tool_info = self._tool_calls.get(sid, {}).pop(evt.tool_call_id, {})
                 tool_name = tool_info.get("name")
                 tool_input = tool_info.get("arguments")
+                cwd = self.store.get_session_cwd(sid)
                 if evt.is_error:
                     self.store.add_observation_from_wire(
                         session_id=sid,
@@ -108,6 +111,7 @@ class WireIndexer:
                         turn_number=turn_n,
                         step_number=step_n,
                         timestamp=evt.timestamp,
+                        cwd=cwd,
                     )
                 else:
                     self.store.add_observation_from_wire(
@@ -119,6 +123,7 @@ class WireIndexer:
                         turn_number=turn_n,
                         step_number=step_n,
                         timestamp=evt.timestamp,
+                        cwd=cwd,
                     )
 
     def index_state(self, state: SessionState | None) -> None:

@@ -322,6 +322,7 @@ class Extractor:
     def _store_tool_observation(self, data: dict[str, Any], success: bool) -> None:
         """Store a tool observation."""
         session_id = data["session_id"]
+        cwd = data.get("cwd", "")
         tool_name = data.get("tool_name", "")
         tool_input = data.get("tool_input", {})
         # Extract file path
@@ -377,6 +378,7 @@ class Extractor:
                     tool_input=tool_input_str,
                     tool_response=cleaned_output if success else None,
                     error=cleaned_error if not success else None,
+                    cwd=cwd,
                 )
             )
 

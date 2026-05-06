@@ -35,12 +35,27 @@ class WireStore:
     # ------------------------------------------------------------------
 
     def ensure_session(self, session_id: str, cwd: str = "") -> None:
-        """Create session record if missing."""
+        """Create session record if missing. Preserves existing cwd."""
         with self._get_conn() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO sessions (id, cwd, project) VALUES (?, ?, ?)",
+                """
+                INSERT INTO sessions (id, cwd, project)
+                VALUES (?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    cwd = COALESCE(sessions.cwd, excluded.cwd),
+                    project = COALESCE(sessions.project, excluded.project)
+                """,
                 (session_id, cwd, cwd),
             )
+
+    def get_session_cwd(self, session_id: str) -> str | None:
+        """Get cwd for a session from the database."""
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT cwd FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            return row["cwd"] if row else None
 
     # ------------------------------------------------------------------
     # Wire events
@@ -308,6 +323,7 @@ class WireStore:
         step_number: int | None = None,
         turn_number: int | None = None,
         timestamp: float | None = None,
+        cwd: str | None = None,
     ) -> int:
         """Add an observation record compatible with the old schema.
 
@@ -348,6 +364,7 @@ class WireStore:
                 tool_input=tool_input,
                 tool_response=tool_output,
                 error=error,
+                cwd=cwd,
             )
 
         return obs_id

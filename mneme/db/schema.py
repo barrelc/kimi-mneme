@@ -123,6 +123,7 @@ MIGRATIONS: list[tuple[int, str]] = [
             tool_name TEXT,
             tool_input TEXT,
             tool_response TEXT,
+            error TEXT,
             cwd TEXT,
             last_user_message TEXT,
             last_assistant_message TEXT,

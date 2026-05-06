@@ -44,6 +44,7 @@ class PendingMessage:
     tool_name: str | None = None
     tool_input: str | None = None
     tool_response: str | None = None
+    error: str | None = None
     cwd: str | None = None
     last_user_message: str | None = None
     last_assistant_message: str | None = None
@@ -556,9 +557,9 @@ class ObservationStore:
                 """
                 INSERT INTO pending_messages
                 (session_id, message_type, tool_use_id, tool_name, tool_input,
-                 tool_response, cwd, last_user_message, last_assistant_message,
+                 tool_response, error, cwd, last_user_message, last_assistant_message,
                  prompt_number, status, retry_count)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT DO NOTHING
                 """,
                 (
@@ -568,6 +569,7 @@ class ObservationStore:
                     message.tool_name,
                     message.tool_input,
                     message.tool_response,
+                    message.error,
                     message.cwd,
                     message.last_user_message,
                     message.last_assistant_message,
