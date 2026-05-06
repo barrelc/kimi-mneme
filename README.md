@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Kimi CLI](https://img.shields.io/badge/Kimi%20CLI-plugin-orange.svg)](https://moonshotai.github.io/kimi-cli/)
 
-**Version:** <!-- VERSION -->2.0.20<!-- /VERSION -->
+**Version:** <!-- VERSION -->2.0.22<!-- /VERSION -->
 
 > **Mneme** (Greek: Μνήμη) — the goddess of memory and the mother of the Muses.  
 > This project brings persistent, AI-compressed memory to [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/).
