@@ -43,4 +43,4 @@ jobs:
       - name: Publish to PyPI
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI }}
-        run: uv publish --skip-existing
+        run: uv publish --check-url https://pypi.org/simple/kimi-mneme/
