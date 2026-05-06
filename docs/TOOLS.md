@@ -311,12 +311,12 @@ The tools are declared in `plugin/plugin.json`:
 ```json
 {
   "name": "kimi-mneme",
-  "version": "2.0.23",
+  "version": "2.0.24",
   "tools": [
     {
       "name": "mneme_search",
       "description": "Search memory index with full-text queries. Returns compact index with IDs, timestamps, types, and snippets. Use this as the first step in progressive disclosure.",
-      "command": ["python3", "tools/search.py"],
+      "command": ["python", "tools/search.py"],
       "parameters": {
         "type": "object",
         "properties": {
@@ -333,7 +333,7 @@ The tools are declared in `plugin/plugin.json`:
     {
       "name": "mneme_timeline",
       "description": "Get chronological context around a specific observation. Shows what happened before and after. Use after mneme_search to understand context.",
-      "command": ["python3", "tools/timeline.py"],
+      "command": ["python", "tools/timeline.py"],
       "parameters": {
         "type": "object",
         "properties": {
@@ -346,7 +346,7 @@ The tools are declared in `plugin/plugin.json`:
     {
       "name": "mneme_get",
       "description": "Fetch full observation details by IDs. Always batch multiple IDs in one call. Use as the final step after identifying relevant observations.",
-      "command": ["python3", "tools/get.py"],
+      "command": ["python", "tools/get.py"],
       "parameters": {
         "type": "object",
         "properties": {

@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE)
 [![Kimi CLI](https://img.shields.io/badge/Kimi%20CLI-plugin-orange.svg)](https://moonshotai.github.io/kimi-cli/)
 
-**Version:** <!-- VERSION -->2.0.23<!-- /VERSION -->
+**Version:** <!-- VERSION -->2.0.24<!-- /VERSION -->
 
 > **Mneme** (Greek: Μνήμη) — the goddess of memory and the mother of the Muses.  
 > This project brings persistent, AI-compressed memory to [Kimi Code CLI](https://moonshotai.github.io/kimi-cli/).
@@ -301,7 +301,6 @@ flowchart TB
 | **Compressor** | Generates semantic summaries via configurable LLM (Kimi API, Ollama, OpenAI-compatible) |
 | **Injector** | Injects checkpoints, patterns, and relevant past context at session start |
 | **SQLite** | Stores sessions, observations, summaries, checkpoints, patterns, compaction events |
-| **sqlite-vec** | SQLite extension for semantic similarity search (primary, cross-platform) |
 | **sqlite-vec** | SQLite extension for semantic similarity search (primary, cross-platform) |
 | **Web Server** | FastAPI-based API on port 37777 — real-time SSE event stream |
 

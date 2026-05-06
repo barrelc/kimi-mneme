@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/yourusername/kimi-mneme.git
+git clone https://github.com/barrelc/kimi-mneme.git
 cd kimi-mneme
 
 # Create virtual environment
@@ -11,11 +11,10 @@ python -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate  # Windows
 
-# Install dependencies
-pip install -r requirements-dev.txt
-
-# Install in editable mode
-pip install -e .
+# Install in editable mode with dev dependencies
+uv pip install -e ".[dev]"
+# Or with pip:
+pip install -e ".[dev]"
 ```
 
 > **Note:** `sqlite3` CLI is required for database inspection and internal operations. Install via your system package manager (`apt install sqlite3`, `brew install sqlite3`, `winget install SQLite.SQLite`, etc.).
@@ -34,54 +33,73 @@ kimi-mneme/
 │   └── user_prompt_submit.py
 ├── plugin/             # Kimi CLI plugin
 │   ├── plugin.json
-│   └── tools/
-│       ├── search.py
-│       ├── timeline.py
-│       └── get.py
+│   └── config.json
 ├── mneme/              # Main package
 │   ├── core/           # Business logic
+│   │   ├── ai_provider.py          # ConfigurableAIProvider + HybridProvider
 │   │   ├── codebase_analyzer.py    # Tree-sitter AST analysis
+│   │   ├── compressor.py           # AI session compression
+│   │   ├── extractor.py            # Raw observation extraction
+│   │   ├── heuristic_structuring.py# Rule-based structuring fallback
+│   │   ├── injector.py             # Context injection at session start
+│   │   ├── llm_client.py           # Unified LLM client (Kimi/Ollama/OpenAI)
 │   │   ├── project_md.py           # AGENTS.md + PROJECT.md generation
+│   │   ├── sanitize.py             # Privacy filtering (3-layer)
+│   │   ├── session_summary.py      # Session summary generation
+│   │   ├── summarizer.py           # Text summarization
+│   │   ├── worker.py               # Background StructuringWorker
 │   │   └── prompts/                # AI prompts & JSON parser
+│   │       ├── json_parser.py
+│   │       └── observation_prompt.py
 │   ├── db/             # Database layer
 │   │   ├── schema.py               # 18 migrations
-│   │   ├── store.py                # Raw observations
+│   │   ├── store.py                # Raw observations + pending queue
 │   │   ├── structured_store.py     # Structured observations + FTS5
-│   │   ├── vector.py               # sqlite-vec
+│   │   ├── vector.py               # sqlite-vec embeddings
 │   │   ├── collections_store.py    # Knowledge Collections
 │   │   └── wire_store.py           # Wire events
 │   ├── server/         # Web UI + API
-│   │   ├── app.py
-│   │   ├── routes.py               # 30+ endpoints
+│   │   ├── app.py                  # FastAPI app + lifespan
+│   │   ├── routes.py               # 30+ REST endpoints
 │   │   └── static/
-│   │       ├── index.html          # Welcome modal, log drawer
-│   │       ├── style.css           # Glassmorphism, skeletons
-│   │       └── app.js              # SSE, WebSocket, filters
+│   │       ├── index.html
+│   │       ├── style.css
+│   │       └── app.js
+│   ├── wire/           # Wire protocol (MCP logs)
+│   │   ├── indexer.py
+│   │   ├── models.py
+│   │   ├── parser.py
+│   │   ├── reader.py
+│   │   └── watcher.py
 │   ├── mcp_server.py   # FastMCP — 15 tools
-│   ├── cli.py          # CLI commands
-│   └── config.py       # Configuration
-├── server/             # Legacy server entry (re-exports)
-├── tests/              # Test suite (98+ tests)
-│   ├── test_codebase_analyzer.py   # 15 tests
-│   ├── test_collections.py         # 9 tests
-│   ├── test_sanitize.py            # Privacy v2
-│   ├── test_sqlite_vec.py          # Vector search
-│   ├── test_store.py
-│   ├── test_structured_store.py    # Dedup v2
-│   ├── test_worker.py
+│   ├── cli.py          # CLI commands (bootstrap, server, stats, etc.)
+│   ├── config.py       # Configuration management
+│   ├── compat.py       # Version compatibility
+│   └── updater.py      # Auto-update
+├── tests/              # Test suite (118 tests)
+│   ├── test_ai_provider.py
+│   ├── test_codebase_analyzer.py
+│   ├── test_collections.py
 │   ├── test_json_parser.py
-│   └── test_ai_provider.py
+│   ├── test_sanitize.py
+│   ├── test_sqlite_vec.py
+│   ├── test_store.py
+│   ├── test_structured_store.py
+│   ├── test_updater.py
+│   └── test_worker.py
 ├── docs/               # Documentation
 ├── README.md
 ├── LICENSE
 ├── pyproject.toml
-└── requirements.txt
+└── scripts/
+    ├── install.py
+    └── uninstall.py
 ```
 
 ## Running Tests
 
 ```bash
-# All tests (98+ tests)
+# All tests (118 tests)
 pytest
 
 # Quick check
@@ -95,23 +113,22 @@ pytest tests/test_codebase_analyzer.py -v
 pytest tests/test_collections.py -v
 pytest tests/test_sqlite_vec.py -v
 pytest tests/test_sanitize.py -v
-
-# Integration tests (require Kimi CLI)
-pytest tests/integration/ -v
+pytest tests/test_worker.py -v
+pytest tests/test_json_parser.py -v
+pytest tests/test_ai_provider.py -v
 ```
 
 ## Code Style
 
 ```bash
-# Format
-black mneme/ tests/
+# Format (ruff)
+ruff format mneme/ tests/
 
-# Lint
+# Lint (ruff)
 ruff check mneme/ tests/
-
-# Type check
-mypy mneme/
 ```
+
+> **Note:** We use `ruff` for both formatting and linting. `black` and `mypy` are not required.
 
 ## Adding a New Hook
 
@@ -127,14 +144,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from mneme.core.store import ObservationStore
+from mneme.db.store import ObservationStore
 
 
 def main():
     input_data = json.load(sys.stdin)
     
     store = ObservationStore()
-    store.add({
+    store.add_observation({
         "session_id": input_data["session_id"],
         "event_type": input_data["hook_event_name"],
         # ... event-specific fields
@@ -147,87 +164,36 @@ if __name__ == "__main__":
     main()
 ```
 
-2. Register in `~/.kimi/config.toml`:
+2. Register via `mneme bootstrap` or manually in `~/.kimi/config.toml`:
 
 ```toml
 [[hooks]]
 event = "YourEvent"
-command = "python3 /path/to/kimi-mneme/hooks/<event_name>.py"
+command = "python /path/to/kimi-mneme/hooks/<event_name>.py"
 ```
 
-## Adding a New Plugin Tool
+## Adding a New MCP Tool
 
-1. Create `plugin/tools/<tool_name>.py`:
+Edit `mneme/mcp_server.py`:
 
 ```python
-#!/usr/bin/env python3
-"""Tool: <tool_name>."""
-
-import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from mneme.core.store import ObservationStore
-
-
-def main():
-    params = json.load(sys.stdin)
-    
+@mcp.tool()
+def my_new_tool(query: str, limit: int = 10) -> str:
+    """Description of what this tool does."""
+    from mneme.db.store import ObservationStore
     store = ObservationStore()
-    result = store.some_query(params)
-    
-    print(json.dumps(result, ensure_ascii=False))
-
-
-if __name__ == "__main__":
-    main()
-```
-
-2. Register in `plugin/plugin.json`:
-
-```json
-{
-  "tools": [
-    {
-      "name": "mneme_<tool_name>",
-      "description": "What this tool does",
-      "command": ["python3", "tools/<tool_name>.py"],
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "param1": { "type": "string" }
-        },
-        "required": ["param1"]
-      }
-    }
-  ]
-}
-```
-
-## Database Migrations
-
-```bash
-# Create migration
-python -m mneme.db.migrate create "add_user_column"
-
-# Apply migrations
-python -m mneme.db.migrate upgrade
-
-# Rollback
-python -m mneme.db.migrate downgrade
+    results = store.search(query, limit=limit)
+    return json.dumps(results, ensure_ascii=False)
 ```
 
 ## Release Process
 
-1. Update version in `pyproject.toml`
-2. Update `docs/IMPLEMENTATION_PLAN.md` with new metrics
-3. Update all docs (README, ARCHITECTURE, TOOLS, WEB_UI, DEVELOPMENT)
-4. Run tests: `pytest` (all tests must pass)
-5. Build: `python -m build`
-6. Tag: `git tag v2.1.0`
-7. Push: `git push origin v2.1.0`
+1. Update version in `pyproject.toml`, `mneme/__init__.py`, `plugin/plugin.json`
+2. Sync version in README.md (`<!-- VERSION -->...<!-- /VERSION -->`)
+3. Run tests: `pytest` (all 118 tests must pass)
+4. Build: `uv build`
+5. Tag: `git tag v2.1.0`
+6. Push: `git push origin main && git push origin v2.1.0`
 
 ## Contributing
 
@@ -247,10 +213,10 @@ export MNEME_LOG_LEVEL=DEBUG
 # Run hook manually with test data
 echo '{"session_id": "test", "cwd": "/tmp", "hook_event_name": "SessionStart", "source": "startup"}' | python hooks/session_start.py
 
-# Inspect database (works without sqlite3 CLI)
+# Inspect database
 python -c "import sqlite3; conn=sqlite3.connect('~/.kimi/mneme/mneme.db'); [print(r) for r in conn.execute('SELECT * FROM observations LIMIT 10').fetchall()]"
 # Or if sqlite3 CLI is installed: sqlite3 ~/.kimi/mneme/mneme.db "SELECT * FROM observations LIMIT 10;"
 
-# Check vector store
-python -m mneme.db.vector_stats
+# Check vector store status
+python -c "from mneme.db.vector import SQLiteVecStore; v=SQLiteVecStore(); print(v.get_stats())"
 ```

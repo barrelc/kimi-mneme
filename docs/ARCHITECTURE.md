@@ -226,11 +226,90 @@ CREATE TABLE truncated_outputs (
     FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
 );
 
--- Full-text search index
+-- Structured observations (AI/heuristic structured metadata)
+CREATE TABLE structured_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    project TEXT NOT NULL,
+    type TEXT NOT NULL
+        CHECK(type IN ('bugfix', 'feature', 'refactor', 'change', 'discovery', 'decision')),
+    title TEXT NOT NULL,
+    subtitle TEXT,
+    facts TEXT,          -- JSON array of strings
+    narrative TEXT,      -- Brief description (1-2 sentences)
+    concepts TEXT,       -- JSON array: how-it-works, why-it-exists, etc.
+    files_read TEXT,     -- JSON array of file paths
+    files_modified TEXT, -- JSON array of file paths
+    content_hash TEXT NOT NULL,
+    discovery_tokens INTEGER DEFAULT 0,
+    raw_observation_id INTEGER,
+    source TEXT DEFAULT 'ai'  -- 'ai', 'heuristic', 'manual'
+        CHECK(source IN ('ai', 'heuristic', 'manual')),
+    model TEXT,          -- 'kimi-k2.5', 'heuristic', etc.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (raw_observation_id) REFERENCES observations(id) ON DELETE SET NULL,
+    UNIQUE(session_id, content_hash)
+);
+
+-- Soft dedup links between structured observations and raw observations
+CREATE TABLE structured_observation_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    existing_structured_id INTEGER NOT NULL,
+    linked_raw_observation_id INTEGER,
+    content_hash TEXT NOT NULL,
+    link_type TEXT DEFAULT 'soft' CHECK(link_type IN ('soft', 'hard')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (existing_structured_id) REFERENCES structured_observations(id) ON DELETE CASCADE,
+    FOREIGN KEY (linked_raw_observation_id) REFERENCES observations(id) ON DELETE CASCADE
+);
+
+-- Vector sync state (watermark-based)
+CREATE TABLE vec_sync_state (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    last_synced_id INTEGER DEFAULT 0,
+    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Knowledge collections
+CREATE TABLE observation_collections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    project TEXT,
+    query TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Collection items
+CREATE TABLE collection_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection_id INTEGER NOT NULL,
+    observation_id INTEGER NOT NULL,
+    item_type TEXT DEFAULT 'structured' CHECK(item_type IN ('structured', 'raw')),
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (collection_id) REFERENCES observation_collections(id) ON DELETE CASCADE,
+    FOREIGN KEY (observation_id) REFERENCES structured_observations(id) ON DELETE CASCADE,
+    UNIQUE(collection_id, observation_id)
+);
+
+-- Full-text search index (raw observations)
 CREATE VIRTUAL TABLE observations_fts USING fts5(
     content='observations',
     content_rowid='id',
     tool_name, tool_input, tool_output
+);
+
+-- Full-text search index (structured observations)
+CREATE VIRTUAL TABLE structured_observations_fts USING fts5(
+    title,
+    subtitle,
+    narrative,
+    facts,
+    concepts,
+    content='structured_observations',
+    content_rowid='id'
 );
 ```
 
