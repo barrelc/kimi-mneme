@@ -233,7 +233,27 @@ class SQLiteVecStore:
                 self._ensure_vec_tables(conn)
             except Exception as e:
                 logger.warning(f"Failed to load sqlite-vec extension: {e}")
-                self._vec_available = False
+
+    @classmethod
+    def release_singleton(cls) -> None:
+        """Release the singleton connection to allow other processes access.
+
+        sqlite-vec stores embeddings in-memory per connection, so this
+        will lose recently added embeddings that haven't been persisted.
+        Call this only after committing transactions.
+        """
+        with cls._singleton_lock:
+            if cls._singleton_conn is not None:
+                try:
+                    cls._singleton_conn.commit()
+                    cls._singleton_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    cls._singleton_conn.close()
+                except Exception:
+                    pass
+                finally:
+                    cls._singleton_conn = None
+                    cls._singleton_db_path = None
+                    cls._vec_available = False
 
     def _ensure_vec_tables(self, conn: sqlite3.Connection) -> None:
         """Create vec0 virtual tables if they don't exist."""

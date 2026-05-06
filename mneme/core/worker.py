@@ -113,6 +113,15 @@ class StructuringWorker:
                 logger.error(f"Failed to structure message {msg['id']}: {e}")
                 self.store.mark_message_failed(msg["id"])
 
+        # Release connections to prevent DB locking between batches
+        self.structured_store.close()
+        try:
+            from mneme.db.vector import SQLiteVecStore
+
+            SQLiteVecStore.release_singleton()
+        except Exception:
+            pass
+
     @staticmethod
     def _extract_project(cwd: str | None) -> str:
         """Extract project name from cwd."""

@@ -19,6 +19,72 @@ mcp = FastMCP(
 )
 
 
+def _maybe_structure_pending() -> None:
+    """Lazy structuring: process pending messages when MCP tool is called."""
+    try:
+        from mneme.config import load_config
+        from mneme.core.ai_provider import ConfigurableAIProvider, HybridProvider
+        from mneme.db.store import ObservationStore
+        from mneme.db.structured_store import StructuredObservationStore
+
+        config = load_config()
+        llm_cfg = config.get("llm", {})
+        provider_name = llm_cfg.get("provider", "kimi")
+
+        # Skip if no local LLM configured (avoid 403 with OAuth)
+        if provider_name == "kimi":
+            return
+
+        store = ObservationStore()
+        structured_store = StructuredObservationStore()
+
+        pending = store.claim_pending_messages(limit=10, message_type="observation")
+        if not pending:
+            return
+
+        ai_provider = ConfigurableAIProvider(
+            provider=provider_name,
+            model=llm_cfg.get("model"),
+            base_url=llm_cfg.get("base_url"),
+            api_key=llm_cfg.get("api_key"),
+            timeout=llm_cfg.get("timeout", 60.0),
+        )
+        provider = HybridProvider(ai_provider=ai_provider)
+
+        import asyncio
+
+        async def _process() -> None:
+            for msg in pending:
+                try:
+                    result = await provider.structure_observation(
+                        tool_name=msg.get("tool_name"),
+                        tool_input=msg.get("tool_input"),
+                        tool_output=msg.get("tool_response"),
+                        error=msg.get("error"),
+                    )
+                    if result and not result.skip:
+                        from pathlib import PurePath
+
+                        cwd = msg.get("cwd", "")
+                        project = PurePath(cwd.replace("\\", "/")).name or cwd or "unknown"
+
+                        structured_store.add_structured(
+                            result,
+                            session_id=msg["session_id"],
+                            project=project,
+                            raw_observation_id=msg.get("raw_observation_id"),
+                            source=result.source,
+                            model=result.source,
+                        )
+                    store.mark_message_processed(msg["id"])
+                except Exception:
+                    store.mark_message_failed(msg["id"])
+
+        asyncio.run(_process())
+    except Exception:
+        pass  # Silent fail — don't block search
+
+
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
 def memory_search(query: str, limit: int = 10) -> dict[str, Any]:
     """Search memory index with full-text queries.
@@ -34,6 +100,7 @@ def memory_search(query: str, limit: int = 10) -> dict[str, Any]:
     Returns:
         Dict with 'results' list and 'total' count.
     """
+    _maybe_structure_pending()
     from mneme.db.store import ObservationStore
 
     # 1. Search structured observations

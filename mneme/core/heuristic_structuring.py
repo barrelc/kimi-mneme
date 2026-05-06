@@ -98,6 +98,27 @@ class HeuristicStructuring:
         if prompt:
             return f"{tool}: {self._truncate(prompt, 40)}"
 
+        # Include tool_input snippet for uniqueness (e.g. Shell commands)
+        tool_input = obs.get("tool_input", "")
+        if tool_input:
+            input_str = str(tool_input)
+            # Try to extract meaningful part from JSON-like input
+            try:
+                data = json.loads(input_str) if isinstance(input_str, str) else input_str
+                if isinstance(data, dict):
+                    # Look for command/path/content keys
+                    for key in ["command", "path", "query", "url", "text"]:
+                        if key in data and data[key]:
+                            return f"{tool}: {self._truncate(str(data[key]), 40)}"
+                elif isinstance(data, list) and data:
+                    return f"{tool}: {self._truncate(str(data[0]), 40)}"
+            except (json.JSONDecodeError, TypeError):
+                pass
+            # Fallback: truncate raw input
+            clean = input_str.replace("{\n", "").replace("}", "").replace('"', "")
+            if len(clean) > 3:
+                return f"{tool}: {self._truncate(clean, 40)}"
+
         return tool
 
     def _generate_subtitle(self, obs: dict[str, Any]) -> str | None:
@@ -142,18 +163,26 @@ class HeuristicStructuring:
         tool = obs.get("tool_name", "")
         file_path = obs.get("file_path", "")
         error = obs.get("error", "")
+        tool_input = obs.get("tool_input", "")
 
         parts = []
         if tool:
             parts.append(f"Used {tool}")
         if file_path:
             parts.append(f"on {file_path}")
+
+        # Include tool_input for context
+        if tool_input:
+            input_str = str(tool_input)
+            if len(input_str) > 3:
+                parts.append(f"with input: {self._truncate(input_str, 80)}")
+
         if error:
             parts.append(f"encountered error: {self._truncate(error, 50)}")
         else:
             output = str(obs.get("tool_output", ""))
             if output:
-                parts.append(f"with result: {self._truncate(output, 50)}")
+                parts.append(f"with result: {self._truncate(output, 80)}")
 
         return " ".join(parts) if parts else None
 

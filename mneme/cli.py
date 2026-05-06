@@ -728,6 +728,15 @@ def _register_hooks() -> bool:
         if src.exists():
             shutil.copy2(src, dst)
 
+    # Write version file for hooks version checking
+    try:
+        from mneme import __version__
+
+        version_file = stable_hooks_dir / ".version"
+        version_file.write_text(__version__, encoding="utf-8")
+    except Exception:
+        pass
+
     # Prefer uv tool python if available (has mneme installed), fallback to current
     python_exe = sys.executable
     uv_tool_python = (
@@ -838,6 +847,11 @@ def _generate_plugin_json(plugin_dir: Path) -> None:
         "name": "kimi-mneme",
         "version": __version__,
         "description": "Persistent memory plugin for Kimi Code CLI — search and retrieve past session context. Part of the kimi-plugins ecosystem.",
+        "config_file": "config.json",
+        "inject": {
+            "llm.api_key": "api_key",
+            "llm.endpoint": "base_url",
+        },
         "tools": [
             {
                 "name": "mneme_search",

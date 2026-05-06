@@ -106,9 +106,39 @@ def _start_server() -> None:
         pass  # Fail silently — don't block Kimi CLI startup
 
 
+def _check_hooks_version() -> None:
+    """Warn if installed hooks are older than the mneme package."""
+    try:
+        from mneme import __version__ as package_version
+
+        hook_file = Path(__file__)
+        hooks_dir = hook_file.parent
+        version_file = hooks_dir / ".version"
+
+        if version_file.exists():
+            installed_version = version_file.read_text().strip()
+            if installed_version != package_version:
+                print(
+                    f"[kimi-mneme] Hooks version mismatch: {installed_version} != {package_version}. "
+                    f"Run: mneme bootstrap",
+                    file=sys.stderr,
+                )
+        else:
+            # No version file = very old hooks
+            print(
+                "[kimi-mneme] Hooks version unknown. Run: mneme bootstrap",
+                file=sys.stderr,
+            )
+    except Exception:
+        pass  # Fail silently
+
+
 def main() -> None:
     """Handle SessionStart hook event."""
     try:
+        # Check hooks version
+        _check_hooks_version()
+
         # Auto-start server if configured
         _start_server()
 
