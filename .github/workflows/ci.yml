@@ -59,6 +59,7 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
           sed -i "s/^__version__ = \".*\"/__version__ = \"${VERSION}\"/" mneme/__init__.py
+          sed -i 's/"version": ".*"/"version": "'"${VERSION}"'"/' plugin/plugin.json
           sed -i "s/<!-- VERSION -->.*<!-- \/VERSION -->/<!-- VERSION -->${VERSION}<!-- \/VERSION -->/g" README.md
           sed -i "s/<!-- VERSION -->.*<!-- \/VERSION -->/<!-- VERSION -->${VERSION}<!-- \/VERSION -->/g" docs/index.html
           sed -i "s/<!-- VERSION -->.*<!-- \/VERSION -->/<!-- VERSION -->${VERSION}<!-- \/VERSION -->/g" docs/ARCHITECTURE.md

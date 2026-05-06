@@ -86,6 +86,118 @@ def server(port: int, host: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _get_plugin_credentials() -> tuple[str | None, str | None]:
+    """Get plugin credentials from env vars (injected by kimi-cli) or config.json.
+
+    Priority:
+    1. Env vars llm.api_key / llm.endpoint (injected by kimi-cli at tool runtime)
+    2. config.json in plugin directory (written by kimi-cli at install time)
+    3. None (no credentials available)
+    """
+    import os
+
+    # 1. Env vars (injected at runtime by kimi-cli)
+    token = os.getenv("llm.api_key") or os.getenv("api_key")  # noqa: SIM112
+    endpoint = os.getenv("llm.endpoint") or os.getenv("base_url")  # noqa: SIM112
+    if token:
+        return token, endpoint
+
+    # 2. config.json in plugin directory (fallback)
+    try:
+        plugin_config = Path.home() / ".kimi" / "plugins" / "kimi-mneme" / "config.json"
+        if plugin_config.exists():
+            data = json.loads(plugin_config.read_text(encoding="utf-8"))
+            llm_cfg = data.get("llm", {})
+            token = llm_cfg.get("api_key")
+            endpoint = llm_cfg.get("endpoint")
+            if token:
+                return token, endpoint
+    except Exception:
+        pass
+
+    return None, None
+
+
+def _maybe_structure_pending() -> None:
+    """Lazy structuring: process pending messages when plugin tool is called.
+
+    This runs only when a plugin token is available (injected by kimi-cli).
+    Background worker doesn't have the token, so we do lazy structuring here.
+    """
+    plugin_token, base_url = _get_plugin_credentials()
+    if not plugin_token:
+        return  # No token — skip (background worker or no auth)
+
+    try:
+        from mneme.core.ai_provider import ConfigurableAIProvider, HybridProvider
+        from mneme.db.store import ObservationStore
+        from mneme.db.structured_store import StructuredObservationStore
+
+        store = ObservationStore()
+        structured_store = StructuredObservationStore()
+
+        # Check if there are pending messages
+        pending = store.claim_pending_messages(limit=10, message_type="observation")
+        if not pending:
+            return
+
+        # Determine endpoint if not provided
+        if not base_url:
+            # Heuristic: long token = OAuth (kimi-code endpoint), short = API key (moonshot)
+            base_url = (
+                "https://api.kimi.com/coding/v1/chat/completions"
+                if len(plugin_token) > 500
+                else "https://api.moonshot.cn/v1/chat/completions"
+            )
+
+        ai_provider = ConfigurableAIProvider(
+            provider="kimi",
+            api_key=plugin_token,
+            base_url=base_url,
+            timeout=30.0,
+        )
+        provider = HybridProvider(ai_provider=ai_provider)
+
+        import asyncio
+
+        async def _process() -> None:
+            for msg in pending:
+                try:
+                    result = await provider.structure_observation(
+                        tool_name=msg.get("tool_name"),
+                        tool_input=msg.get("tool_input"),
+                        tool_output=msg.get("tool_response"),
+                        error=msg.get("error"),
+                    )
+                    if result and not result.skip:
+                        from pathlib import PurePath
+
+                        cwd = msg.get("cwd", "")
+                        if cwd:
+                            normalized = cwd.replace("\\", "/")
+                            project = PurePath(normalized).name or cwd
+                        else:
+                            project = "unknown"
+
+                        structured_store.add_structured(
+                            result,
+                            session_id=msg["session_id"],
+                            project=project,
+                            raw_observation_id=msg.get("raw_observation_id"),
+                            source=result.source,
+                            model=result.source,
+                        )
+                    store.mark_message_processed(msg["id"])
+                except Exception:
+                    store.mark_message_failed(msg["id"])
+
+        asyncio.run(_process())
+
+    except Exception:
+        # Silent fail — don't block search if structuring fails
+        pass
+
+
 @main.command("search")
 @click.option("--query", "-q", required=True, help="Search query")
 @click.option("--limit", "-l", default=10, help="Max results")
@@ -106,6 +218,7 @@ def search_cmd(
     semantic: bool,
 ) -> None:
     """Search memory index (plugin tool wrapper)."""
+    _maybe_structure_pending()
     from mneme.db.store import ObservationStore
     from mneme.db.structured_store import StructuredObservationStore
     from mneme.db.vector import SQLiteVecStore
@@ -267,6 +380,7 @@ def search_cmd(
 @click.option("--radius", "-r", default=5, help="Items before/after")
 def timeline_cmd(observation_id: int, radius: int) -> None:
     """Get chronological context around an observation (plugin tool wrapper)."""
+    _maybe_structure_pending()
     from mneme.db.store import ObservationStore
 
     store = ObservationStore()
@@ -296,6 +410,7 @@ def timeline_cmd(observation_id: int, radius: int) -> None:
 @click.option("--ids", "-i", required=True, help="Comma-separated observation IDs")
 def get_cmd(ids: str) -> None:
     """Fetch full observation details by IDs (plugin tool wrapper)."""
+    _maybe_structure_pending()
     from mneme.db.store import ObservationStore
 
     store = ObservationStore()
