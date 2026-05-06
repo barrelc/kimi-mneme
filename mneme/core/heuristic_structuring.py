@@ -87,7 +87,7 @@ class HeuristicStructuring:
         return "discovery"
 
     def _generate_title(self, obs: dict[str, Any]) -> str:
-        tool = obs.get("tool_name", "Unknown")
+        tool = obs.get("tool_name") or "Unknown"
         file_path = obs.get("file_path", "")
         prompt = obs.get("prompt", "")
 

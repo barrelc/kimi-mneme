@@ -68,7 +68,9 @@ def memory_semantic_search(
     vec_store = SQLiteVecStore()
 
     try:
-        results = vec_store.search_with_content(query=query, project=project, limit=limit, days=days)
+        results = vec_store.search_with_content(
+            query=query, project=project, limit=limit, days=days
+        )
         elapsed = round(time.time() - start, 2)
         logger.debug(f"Semantic search done in {elapsed}s")
         return {
