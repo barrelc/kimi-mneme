@@ -1,4 +1,19 @@
-"""Parse JSON responses from AI structuring."""
+"""Parse JSON responses from AI structuring.
+
+Location: mneme/core/prompts/json_parser.py
+
+This module is part of the AI structuring pipeline. It parses raw JSON responses
+from LLMs into structured ParsedObservation objects.
+
+Related modules:
+    - mneme/core/ai_provider.py        -- Uses parse_observation_json() via HybridProvider / ConfigurableAIProvider
+    - mneme/core/prompts/observation_prompt.py  -- Prompt templates sent to LLM
+    - mneme/core/heuristic_structuring.py       -- Fallback when AI is disabled
+    - mneme/core/worker.py             -- Background worker that orchestrates structuring
+    - mneme/db/structured_store.py     -- Stores the resulting ParsedObservation
+
+Tests: tests/test_json_parser.py
+"""
 
 from __future__ import annotations
 

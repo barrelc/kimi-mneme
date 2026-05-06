@@ -1,8 +1,29 @@
 """Heuristic structuring as fallback when AI is unavailable.
 
+Location: mneme/core/heuristic_structuring.py
+
 This module extracts structured observations from raw tool calls using
 rule-based analysis. It's designed to be fast, deterministic, and produce
 high-quality results comparable to AI structuring for common patterns.
+
+Architecture:
+    HeuristicStructuring
+    ├── structure()           -- Main entry point
+    ├── _detect_type()        -- Detects observation type from tool/error/prompt
+    ├── _generate_title()     -- Generates human-readable title
+    ├── _generate_subtitle()  -- Generates subtitle/summary
+    ├── _extract_facts()      -- Extracts key facts (up to 5)
+    ├── _generate_narrative() -- Generates narrative description
+    ├── _detect_concepts()    -- Detects concept tags from patterns
+    ├── _extract_files_*()    -- Extracts file paths
+    └── _extract_file_paths() -- Regex-based file path extraction
+
+Related modules:
+    - mneme/core/ai_provider.py         -- HybridProvider falls back to this module
+    - mneme/core/prompts/json_parser.py -- ParsedObservation dataclass (same fields)
+    - mneme/db/structured_store.py      -- Stores HeuristicObservation results
+
+Tests: tests/test_ai_provider.py (TestHeuristicStructuring)
 """
 
 from __future__ import annotations

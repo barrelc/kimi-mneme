@@ -1,4 +1,27 @@
-"""Background worker for AI structuring queue."""
+"""Background worker for AI structuring queue.
+
+Location: mneme/core/worker.py
+
+This module runs a background loop that fetches pending observations from the queue,
+processes them through AI/heuristic structuring, and stores structured results.
+
+Architecture:
+    StructuringWorker
+    ├── _build_ai_provider_from_config()  -- Creates ConfigurableAIProvider from config
+    ├── start()                           -- Main loop (async)
+    ├── _process_batch()                  -- Claims messages, structures, stores results
+    └── _extract_project()                -- Extracts project name from cwd
+
+Related modules:
+    - mneme/core/ai_provider.py            -- HybridProvider / ConfigurableAIProvider
+    - mneme/core/prompts/json_parser.py    -- Parses LLM JSON responses
+    - mneme/core/heuristic_structuring.py  -- Fallback when AI is unavailable
+    - mneme/db/store.py                    -- Raw observation queue (claim_pending_messages)
+    - mneme/db/structured_store.py         -- Stores structured observations
+    - mneme/db/vector.py                   -- Vector search index
+
+Tests: tests/test_worker.py
+"""
 
 from __future__ import annotations
 

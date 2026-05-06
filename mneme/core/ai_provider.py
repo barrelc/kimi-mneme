@@ -1,4 +1,25 @@
-"""AI provider for observation structuring using configurable LLM backends."""
+"""AI provider for observation structuring using configurable LLM backends.
+
+Location: mneme/core/ai_provider.py
+
+This module provides the AI/Hybrid providers that orchestrate observation structuring.
+It sends tool call data to an LLM and parses the JSON response into structured observations.
+
+Architecture:
+    AIProvider (abstract)
+    ├── ConfigurableAIProvider  -- Uses any LLM client (Kimi, Ollama, OpenAI-compatible)
+    └── HybridProvider          -- Tries AI first, falls back to heuristic structuring
+
+Related modules:
+    - mneme/core/prompts/json_parser.py         -- Parses LLM JSON responses
+    - mneme/core/prompts/observation_prompt.py  -- Prompt templates
+    - mneme/core/heuristic_structuring.py       -- Fallback when AI is unavailable
+    - mneme/core/llm_client.py                  -- LLM client abstraction
+    - mneme/core/worker.py                      -- Background worker using HybridProvider
+    - mneme/db/structured_store.py              -- Stores ParsedObservation results
+
+Tests: tests/test_ai_provider.py
+"""
 
 from __future__ import annotations
 
